@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  BookOpen,
   Check,
   ChevronDown,
   Clock,
@@ -23,9 +24,11 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { XP, deadlineOf, dayOf, fmtDay, isComplete, progressOf, questStatus } from '@/lib/game'
-import { LEVELS, QUESTS, type Quest, type Variant, variantOf } from '@/lib/quest'
+import { LEVELS, QUESTS, type Quest, type Variant, diagramFor, learnLinksFor, variantOf } from '@/lib/quest'
+import { toolOf } from '@/lib/tools'
 import { confetti } from './Celebrate'
 import Creations from './Creations'
+import Diagram from './Diagram'
 import Modal from './Modal'
 import Rich from './Rich'
 import { useQuest } from './QuestProvider'
@@ -129,7 +132,10 @@ export default function QuestView({ quest: q }: { quest: Quest }) {
  * card fold away so the page isn't a wall of text — she opens them when she needs them.
  */
 function Brief({ v, questId }: { v: Variant; questId: string }) {
-  const { state, openCoach } = useQuest()
+  const { state, openCoach, setup } = useQuest()
+  const diagram = diagramFor(questId)
+  const links = learnLinksFor(v.tools, setup)
+  if (questId === 't0' && toolOf(setup.tool).app === 'VS Code') links.push({ label: 'VS Code introduction videos', url: 'https://code.visualstudio.com/docs/getstarted/introvideos' })
   const goal = state.profile?.goal?.trim()
   return (
     <>
@@ -148,6 +154,12 @@ function Brief({ v, questId }: { v: Variant; questId: string }) {
           ))}
         </ul>
       </section>
+
+      {questId === 't0' && diagram && (
+        <section className="card">
+          <Diagram name={diagram} />
+        </section>
+      )}
 
       <section className="done-when">
         <span className="mono">Done when</span>
@@ -197,6 +209,7 @@ function Brief({ v, questId }: { v: Variant; questId: string }) {
           </span>
           <ChevronDown className="fold__chev" size={20} />
         </summary>
+        {diagram && questId !== 't0' && <Diagram name={diagram} />}
         <p>{v.concept.body}</p>
         {v.concept.experiment && (
           <div className="experiment">
@@ -211,6 +224,31 @@ function Brief({ v, questId }: { v: Variant; questId: string }) {
           <b>You’re learning:</b> {v.learning}
         </p>
       </details>
+
+      {links.length > 0 && (
+        <details className="fold card">
+          <summary>
+            <span className="ico">
+              <BookOpen size={18} />
+            </span>
+            <span>
+              <b>Learn more</b>
+              <small>Official guides for the tools in this quest</small>
+            </span>
+            <ChevronDown className="fold__chev" size={20} />
+          </summary>
+          <ul className="learn">
+            {links.map((l) => (
+              <li key={l.url}>
+                <a href={l.url} target="_blank" rel="noreferrer">
+                  {l.label}
+                </a>
+                {l.note && <small>{l.note}</small>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </>
   )
 }

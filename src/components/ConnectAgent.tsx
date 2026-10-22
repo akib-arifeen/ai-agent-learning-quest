@@ -4,6 +4,7 @@ import { Check, Copy, KeyRound, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Submission, proTaskById } from '@/lib/pro'
 import { toolOf } from '@/lib/tools'
+import Diagram from './Diagram'
 import { useQuest } from './QuestProvider'
 import Rich from './Rich'
 
@@ -178,6 +179,7 @@ export default function ConnectAgent() {
         <span className={`chip ${lastUsed ? 'chip--mint' : hasToken ? 'chip--pear' : 'chip--line'}`}>{status}</span>
       </div>
       <p className="muted">Your agent talks to this app over MCP. Make a token, add it to your agent’s settings, then ask it to try a level.</p>
+      <Diagram name="mcp" compact />
 
       <div className="row">
         <button type="button" className="btn btn--cyan" onClick={make} disabled={busy}>

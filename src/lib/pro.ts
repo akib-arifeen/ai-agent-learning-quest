@@ -227,7 +227,7 @@ export const PRO_TASKS: ProTask[] = [
     level: 3,
     title: 'Plug in tools with MCP',
     concept:
-      'MCP lets your agent use outside tools: a local web search and fetch server, browser automation, and now the Quest server itself. Pros keep this list short: Armin Ronacher uses very few MCP servers and prefers plain CLI tools, and Anthropic says CLI tools like gh use less context than MCP servers. Turn off servers you are not using.',
+      'MCP lets your agent use outside tools: a local web search and fetch server, browser automation, and now the Quest server itself. Pros keep this list short: Armin Ronacher uses very few MCP servers and prefers plain CLI tools, and Anthropic says CLI tools like gh use less context than MCP servers. Turn off servers you are not using. When a server has hundreds of tools, Cloudflare’s Code Mode replaces them with two tools (search and execute) and the agent writes code that runs in a sandbox, which saves most of the tool-definition tokens. It needs a secure sandbox, and a small server like this course’s (4 tools) does not need it.',
     build: [
       'Connect the Quest server with the “Connect your agent” card at the top of the Pro track page, using the snippet for your agent. Check it shows as connected.',
       'Add one web search and fetch MCP server that runs locally, and ask your agent a question that needs it.',
@@ -289,6 +289,8 @@ export const PRO_TASKS: ProTask[] = [
       'https://code.claude.com/docs/en/mcp',
       'https://lucumr.pocoo.org/2025/6/12/agentic-coding/',
       'https://vercel.com/docs/mcp/deploy-mcp-servers-to-vercel',
+      'https://blog.cloudflare.com/code-mode-mcp/',
+      'https://www.anthropic.com/engineering/code-execution-with-mcp',
     ],
     xp: 100,
   },
@@ -591,7 +593,7 @@ export const PRO_TASKS: ProTask[] = [
       },
     ],
     equivalents:
-      'Worktrees are plain git, so they work with every agent. Headless: opencode run, cursor -p, codex exec (Codex also has a GitHub Action), and kilo run --auto in Kilo Code. The `claude -p` flags and claude-code-action are specific to Claude Code.',
+      'Worktrees are plain git, so they work with every agent. Headless: opencode run, cursor -p, codex exec (Codex also has a GitHub Action), and kilo run --auto in Kilo Code. OpenCode may refuse its free models in `opencode run` (in our test it answered “OpenCode’s free tier can only be used from within OpenCode”); if it does, use a bring-your-own or paid model for headless runs. Kilo Code’s free Auto Free model does work with kilo run. The `claude -p` flags and claude-code-action are specific to Claude Code.',
     sources: [
       'https://code.claude.com/docs/en/headless',
       'https://code.claude.com/docs/en/github-actions',

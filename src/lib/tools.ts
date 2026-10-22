@@ -70,6 +70,8 @@ export type Tool = {
   sources: string[]
   /** YYYY-MM-DD the facts were checked. */
   checked: string
+  /** The vendor's official getting-started page, fetched and confirmed on `checked`. */
+  start?: { label: string; url: string }
   /**
    * How to connect the Quest MCP server (remote, streamable HTTP, bearer token) in this
    * tool: the config file or command, and a snippet with {url} and {token} placeholders.
@@ -123,6 +125,7 @@ const KILO: Tool = {
     'https://kilo.ai/docs/customize/custom-instructions',
   ],
   checked: '2026-10-22',
+  start: { label: 'Kilo Code: Getting started', url: 'https://kilo.ai/docs/getting-started' },
   mcp: {
     where: 'Add to ~/.config/kilo/kilo.jsonc (your user config, so the token never lands in a repo)',
     snippet: `{
@@ -232,6 +235,7 @@ const OPENCODE: Tool = {
     'https://opencode.ai/v2/docs/console/models/',
   ],
   checked: '2026-10-22',
+  start: { label: 'OpenCode docs: Intro', url: 'https://opencode.ai/docs/' },
   mcp: {
     where: 'Add to opencode.json in your project',
     snippet: `{
@@ -300,6 +304,7 @@ const CLAUDE_CODE: Tool = {
     'https://code.claude.com/docs/en/commands',
   ],
   checked: '2026-10-22',
+  start: { label: 'Claude Code: Quickstart', url: 'https://code.claude.com/docs/en/quickstart' },
   mcp: {
     where: 'Run in your terminal',
     snippet: 'claude mcp add --transport http quest {url} --header "Authorization: Bearer {token}"',
@@ -354,6 +359,7 @@ const CURSOR: Tool = {
     'https://cursor.com/docs/reference/keyboard-shortcuts',
   ],
   checked: '2026-10-22',
+  start: { label: 'Cursor documentation', url: 'https://cursor.com/docs' },
   mcp: {
     where: 'Add to ~/.cursor/mcp.json (your user config, so the token never lands in a repo)',
     snippet: `{
@@ -414,6 +420,7 @@ const WINDSURF: Tool = {
     'https://docs.devin.ai/desktop/cascade/memories',
   ],
   checked: '2026-10-22',
+  start: { label: 'Devin Desktop: Getting started', url: 'https://docs.devin.ai/desktop/getting-started' },
   mcp: {
     where: 'Add to ~/.config/devin/mcp_config.json (Mac or Linux) or %APPDATA%\\devin\\mcp_config.json (Windows)',
     snippet: `{
@@ -476,6 +483,7 @@ const COPILOT: Tool = {
     'https://code.visualstudio.com/docs/agent-customization/custom-instructions',
   ],
   checked: '2026-10-22',
+  start: { label: 'VS Code: Agentic coding tutorial', url: 'https://code.visualstudio.com/docs/agents/agents-tutorial' },
   mcp: {
     where: 'Add to .vscode/mcp.json in your project',
     snippet: `{
@@ -544,6 +552,7 @@ const ANTIGRAVITY: Tool = {
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
   ],
   checked: '2026-10-22',
+  start: { label: 'Antigravity: Get started', url: 'https://antigravity.google/docs/getting-started' },
   mcp: {
     where: 'Add to .agents/mcp_config.json in your project (or ~/.gemini/config/mcp_config.json for every project)',
     snippet: `{
@@ -603,6 +612,7 @@ const GEMINI_CLI: Tool = {
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
   ],
   checked: '2026-10-22',
+  start: { label: 'Gemini CLI documentation', url: 'https://geminicli.com/docs/' },
   mcp: {
     where: 'Run in your terminal',
     snippet: 'gemini mcp add --transport http -H "Authorization: Bearer {token}" quest {url}',
@@ -660,6 +670,7 @@ const CODEX: Tool = {
     'https://learn.chatgpt.com/docs/agent-configuration/agents-md',
   ],
   checked: '2026-10-22',
+  start: { label: 'Codex CLI docs', url: 'https://learn.chatgpt.com/docs/codex/cli' },
   mcp: {
     where: 'Add to ~/.codex/config.toml, then set the environment variable in your terminal',
     snippet: `[mcp_servers.quest]
@@ -715,6 +726,7 @@ const CLINE: Tool = {
     'https://cline.bot/pricing',
   ],
   checked: '2026-10-22',
+  start: { label: 'Cline: What is Cline', url: 'https://docs.cline.bot/getting-started/what-is-cline' },
   mcp: {
     where: 'Add to cline_mcp_settings.json (open it with “Configure MCP Servers” in the Cline panel)',
     snippet: `{

@@ -351,7 +351,7 @@ img { max-width: 100%; display: block; }
 .map__level .mono { color: var(--color-ink-2); }
 .map__level h3 { font-size: var(--text-xl); }
 .map__level p { font-size: var(--text-sm); color: var(--color-ink-2); max-width: 34ch; }
-.map__cleared { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); font-weight: 800; color: var(--tone-deep); text-transform: uppercase; letter-spacing: 0.05em; }
+.map__cleared { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); font-weight: 800; color: var(--color-ink-2); text-transform: uppercase; letter-spacing: 0.05em; }
 
 .node { position: absolute; z-index: 2; }
 .node__btn {
@@ -967,3 +967,44 @@ pre.code--sent { max-height: 14rem; overflow: auto; white-space: pre-wrap; overf
 .procard__txt { display: grid; flex: 1; min-width: 0; font-size: var(--text-sm); }
 .procard__txt b { font-size: var(--text-base); }
 @media (max-width: 30rem) { .procard { flex-wrap: wrap; } }
+
+/* ── diagrams + learn links ──
+   ds-allow-hardcode: .dg__t font-size is in SVG user units (it scales with the viewBox, so a rem token would be wrong);
+   the max-widths cap the drawing at its designed size. */
+.dg { margin: 0; display: grid; gap: var(--space-2); justify-items: center; min-width: 0; --dg-line: var(--tone-deep, var(--color-accent-2-deep)); --dg-fill: var(--tone-tint, var(--color-accent-2-tint)); }
+[data-tone='ink'] .dg { --dg-line: var(--color-ink-3); } /* the ink tone's --tone-deep is a pale rule colour (about 1.5:1), too faint for arrows */
+.dg__svg { width: 100%; max-width: 560px; height: auto; display: block; overflow: visible; }
+.dg figcaption { font-size: var(--text-sm); color: var(--color-ink-3); text-align: center; max-width: 52ch; text-wrap: balance; }
+.dg--compact .dg__svg { max-width: 380px; }
+.dg__node { fill: var(--color-card); stroke: var(--color-rule-2); stroke-width: 1.5; }
+.dg__node--tone { fill: var(--dg-fill); stroke: var(--dg-line); }
+.dg__pill { fill: var(--color-card); stroke: var(--color-rule-2); stroke-width: 1; }
+.dg__tag { fill: var(--color-lav-tint); stroke: var(--color-lav-deep); stroke-width: 1; }
+.dg__outer { fill: none; stroke: var(--color-rule-2); stroke-width: 1.5; stroke-dasharray: 5 5; opacity: 0.7; }
+.dg__funnel { fill: var(--dg-fill); stroke: var(--dg-line); stroke-width: 1.5; stroke-linejoin: round; }
+.dg__t { font-family: var(--font-body); font-size: 12px; fill: var(--color-ink-2); }
+.dg__t--b { font-weight: 700; fill: var(--color-ink); }
+.dg__t--m, .dg__t--tag { font-weight: 600; fill: var(--color-ink-3); }
+.dg__t--tag { fill: var(--color-lav-deep); }
+.dg__t--faint { fill: var(--color-ink-3); }
+.dg__t--mono { font-family: var(--font-mono); fill: var(--color-ink-2); }
+.dg__t--alt { fill: var(--color-lav-deep); font-weight: 700; }
+.dg__arrow path:first-child { fill: none; stroke: var(--dg-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.dg__arrow .dg__head { fill: var(--dg-line); stroke: none; }
+.dg__arrow--alt path:first-child { stroke: var(--color-lav-deep); }
+.dg__arrow--alt .dg__head { fill: var(--color-lav-deep); }
+.dg__dot { fill: var(--color-accent-3); stroke: var(--color-card); stroke-width: 2; }
+
+.learn { display: grid; gap: var(--space-3); list-style: none; padding: 0; }
+.learn li { display: grid; gap: 2px; min-width: 0; }
+.learn a { font-weight: 700; overflow-wrap: anywhere; }
+.learn small { color: var(--color-ink-3); font-size: var(--text-sm); }
+
+/* Touch screens: icon buttons and standalone text buttons get full 44px tap targets (desktop keeps its compact sizes).
+   ds-allow-hardcode: 44px is the platform touch-target minimum (WCAG 2.5.5 / Apple HIG), not a design-scale value. */
+@media (pointer: coarse) {
+  .iconbtn { width: 44px; height: 44px; }
+  .linkbtn:not(p .linkbtn) { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .brand, .back, .btn--sm, .btn--ghost, .sitting__head { min-height: 44px; }
+  .learn a, .day__what a { display: inline-flex; align-items: center; min-height: 44px; }
+}

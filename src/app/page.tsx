@@ -10,7 +10,7 @@ import Spark from '@/components/Spark'
 import { Stats } from '@/components/Stats'
 import { useEffect, useState } from 'react'
 import Today from '@/components/Today'
-import { firstName } from '@/lib/game'
+import { dayOf, firstName, fmtDay } from '@/lib/game'
 import { PRO_TASKS } from '@/lib/pro'
 import { showPersonalisePrompt } from '@/lib/profile'
 
@@ -18,10 +18,13 @@ import { showPersonalisePrompt } from '@/lib/profile'
 const hello = (h: number) => (h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
 
 /** Spark's one-liner on the home screen — reacts to pace and streak so it never feels canned. */
-function sparkLine(sum: ReturnType<typeof useQuest>['sum']) {
+function sparkLine(sum: ReturnType<typeof useQuest>['sum'], today: string, workedToday: boolean) {
   const { pace, streak } = sum
   if (pace.finished) return 'You did it. Every single quest.'
   if (pace.busyToday) return 'Busy day — your plan and streak are safe. See you tomorrow!'
+  if (pace.restToday && pace.current && pace.current.date > today) {
+    return workedToday ? 'A bonus sitting on a rest day. Nice work.' : `Rest day. Your plan picks up ${fmtDay(pace.current.date)}.`
+  }
   if (pace.behind > 1) return `${pace.behind} sittings to catch up — start with the smallest step.`
   if (pace.behind === 1) return 'Just one sitting behind. Today fixes it.'
   if (pace.todayDone) return streak > 1 ? `${streak} days in a row. You’re on fire.` : 'Done for today. Proud of you.'
@@ -32,7 +35,7 @@ function sparkLine(sum: ReturnType<typeof useQuest>['sum']) {
 
 /** Home: today's mission, stats and badges on the side, the quest map on the right. */
 export default function Home() {
-  const { sum, state, now, dismissCheer, saveProfile } = useQuest()
+  const { sum, state, today, now, dismissCheer, saveProfile } = useQuest()
   const name = firstName(state.user.name)
   const cheer = state.cheers.find((c) => !c.seen_at)
   const proPassed = PRO_TASKS.filter((t) => state.pro.tasks[t.id]?.passed).length
@@ -70,7 +73,7 @@ export default function Home() {
               {hello(now.getHours())}, {name}
             </h1>
             <motion.p className="greet__say" initial={{ opacity: 0, x: -8, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} transition={{ delay: 0.5, type: 'spring', stiffness: 300, damping: 22 }}>
-              {sparkLine(sum)}
+              {sparkLine(sum, today, state.days.some((x) => dayOf(x) === today))}
             </motion.p>
           </div>
         </div>

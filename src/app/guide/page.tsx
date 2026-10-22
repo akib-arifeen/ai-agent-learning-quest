@@ -80,6 +80,14 @@ export default function GuidePage() {
               {tool.docs.replace(/^https?:\/\//, '')}
             </a>
           </p>
+          {tool.start && (
+            <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+              Official getting started:{' '}
+              <a href={tool.start.url} target="_blank" rel="noreferrer">
+                {tool.start.label}
+              </a>
+            </p>
+          )}
           <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
             Checked {fmtDay(tool.checked, { day: 'numeric', month: 'long', year: 'numeric' })} against the official docs
           </p>
@@ -141,6 +149,12 @@ export default function GuidePage() {
         <Fold icon={Wrench} title="Using a different tool?" hint="Switch any time; the quests reword themselves">
           <p>
             <Link href="/profile">Change your tool in your profile →</Link>
+          </p>
+          <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+            New to MCP?{' '}
+            <a href="https://modelcontextprotocol.io/docs/getting-started/intro" target="_blank" rel="noreferrer">
+              Read the MCP introduction
+            </a>
           </p>
         </Fold>
       </div>

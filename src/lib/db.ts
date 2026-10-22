@@ -131,6 +131,12 @@ create table if not exists quest_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create table if not exists quest_pace (
+  user_id text not null references quest_users (id) on delete cascade,
+  since date not null,
+  weekly_minutes int,
+  primary key (user_id, since)
+);
 create table if not exists quest_mcp_tokens (
   user_id text primary key references quest_users (id) on delete cascade,
   token_hash text not null unique,
@@ -204,7 +210,7 @@ export async function touchUser(u: { id: string; email: string; name: string; im
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
   const id = user.id
-  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile, evidence, token] = await Promise.all([
+  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile, evidence, token, pace] = await Promise.all([
     sql`select * from quest_progress where user_id = ${id}`,
     sql`select to_char(day, 'YYYY-MM-DD') as day from quest_busy where user_id = ${id} order by day`,
     sql`select id, task_id, message, image is not null as has_image, created_at from quest_checkins where user_id = ${id} order by id desc limit 200`,
@@ -222,6 +228,7 @@ export async function loadState(user: Learner): Promise<QuestState> {
     sql`select task_id, bool_or(passed) as passed, min(created_at) filter (where passed) as at, count(*)::int as attempts
         from quest_evidence where user_id = ${id} group by task_id`,
     sql`select last_used_at from quest_mcp_tokens where user_id = ${id}`,
+    sql`select to_char(since, 'YYYY-MM-DD') as since, weekly_minutes from quest_pace where user_id = ${id} order by since`,
   ])
   return {
     user,
@@ -240,6 +247,7 @@ export async function loadState(user: Learner): Promise<QuestState> {
       hasToken: token.length > 0,
       lastUsed: token[0] ? iso(token[0].last_used_at) : null,
     },
+    paceLog: pace.map((r) => ({ since: String(r.since), weekly: r.weekly_minutes == null ? null : Number(r.weekly_minutes) })),
   }
 }
 
@@ -261,17 +269,30 @@ const toProfile = (r: Record<string, unknown>): Profile => ({
  * Save onboarding answers: only the fields in the (already validated) patch change, so a
  * later step can't wipe an earlier one. `complete` / `dismiss` stamp their timestamps.
  */
-export async function saveProfile(userId: string, patch: ProfilePatch): Promise<Profile> {
+export async function saveProfile(userId: string, patch: ProfilePatch, today: string): Promise<Profile> {
   await ensureSchema()
   const { complete, dismiss, ...fields } = patch
   const row: Record<string, unknown> = { ...fields, updated_at: new Date() }
   if (complete) row.completed_at = new Date()
   if (dismiss) row.dismissed_at = new Date()
   await sql`insert into quest_profiles (user_id) values (${userId}) on conflict do nothing`
+  const [before] = await sql`select weekly_minutes from quest_profiles where user_id = ${userId}`
   const rows = await sql`
     update quest_profiles set ${sql(row as Record<string, postgres.ParameterOrJSON<never>>, ...Object.keys(row))}
     where user_id = ${userId} returning *`
-  return toProfile(rows[0])
+  const saved = toProfile(rows[0])
+  const old = before?.weekly_minutes == null ? null : Number(before.weekly_minutes)
+  if ('weekly_minutes' in fields && saved.weekly_minutes !== old) {
+    // Same rows as game.ts withPace: the first change also records the old answer from the start
+    // date, so the days before today keep the plan they had.
+    await sql`insert into quest_pace (user_id, since, weekly_minutes)
+      select id, start_date, ${old} from quest_users
+      where id = ${userId} and start_date is not null and not exists (select 1 from quest_pace where user_id = ${userId})`
+    await sql`delete from quest_pace where user_id = ${userId} and since > ${today}`
+    await sql`insert into quest_pace (user_id, since, weekly_minutes) values (${userId}, ${today}, ${saved.weekly_minutes})
+      on conflict (user_id, since) do update set weekly_minutes = excluded.weekly_minutes`
+  }
+  return saved
 }
 
 /** The learner's saved profile (null if they have none yet). */

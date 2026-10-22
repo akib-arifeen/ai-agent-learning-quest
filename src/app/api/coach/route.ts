@@ -1,7 +1,8 @@
 import { streamReply, systemPrompt } from '@/lib/coach'
-import { addMessage, getProgress, listMessages, loadState, logActivity, touchUser } from '@/lib/db'
+import { addMessage, getProgress, listEvidence, listMessages, loadState, logActivity, touchUser } from '@/lib/db'
 import { firstName } from '@/lib/game'
 import { fail, json, me, sameUser, withinLimit } from '@/lib/http'
+import { proTaskById } from '@/lib/pro'
 import { questById } from '@/lib/quest'
 
 export const maxDuration = 60
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 // 'general' = the coach opened from the map/guide rather than inside a quest.
 const scope = (v: unknown) => {
   const id = String(v || 'general')
-  return questById(id) ? id : 'general'
+  return questById(id) || proTaskById(id) ? id : 'general'
 }
 
 /** The signed-in learner's chat history for a quest: ?taskId= */
@@ -34,14 +35,19 @@ export async function POST(req: Request) {
   const today = /^\d{4}-\d{2}-\d{2}$/.test(String(b.today)) ? String(b.today) : new Date().toISOString().slice(0, 10)
 
   const learner = await touchUser(u)
-  const [state, progress, history] = await Promise.all([loadState(learner), getProgress(u.id, taskId), listMessages(u.id, taskId, 12)])
+  const [state, progress, history, proLast] = await Promise.all([
+    loadState(learner),
+    getProgress(u.id, taskId),
+    listMessages(u.id, taskId, 12),
+    proTaskById(taskId) ? listEvidence(u.id, taskId, 1).then((x) => x[0] || null) : null,
+  ])
   await addMessage(u.id, taskId, 'user', message)
   await logActivity(u.id, 'coach', taskId === 'general' ? null : taskId)
 
   try {
     const stream = await streamReply(
       [
-        { role: 'system', content: systemPrompt(firstName(learner.name), taskId, progress, state, today) },
+        { role: 'system', content: systemPrompt(firstName(learner.name), taskId, progress, state, today, proLast) },
         ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user', content: message },
       ],

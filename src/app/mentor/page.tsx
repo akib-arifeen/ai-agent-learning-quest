@@ -3,15 +3,19 @@
 import Link from 'next/link'
 import { ArrowLeft, Send } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { SubmissionCard } from '@/components/ConnectAgent'
 import { FileThumb } from '@/components/Creations'
 import PageHead from '@/components/PageHead'
 import { useQuest } from '@/components/QuestProvider'
 import { type QuestState, dayOf, deadlineOf, firstName, fmtDay, questStatus, summarize } from '@/lib/game'
+import { PRO_TASKS, type Submission, proTaskById } from '@/lib/pro'
 import { setupOf } from '@/lib/profile'
 import { QUESTS, questById, variantOf } from '@/lib/quest'
 import { toolOf } from '@/lib/tools'
 
 type Msg = { id: number; task_id: string; role: string; content: string; created_at: string }
+
+const PRO_CHATS = PRO_TASKS
 
 const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -29,6 +33,15 @@ const FEED: Record<string, string> = {
   coach: 'asked Spark',
   cheer: 'you cheered',
   onboarded: 'personalised their quest for',
+  evidence: 'sent evidence for',
+}
+
+/** Short label for a task id: Base Camp, Qn, or Pro Ln for pro track ids. */
+const taskLabel = (id: string) => {
+  const pro = proTaskById(id)
+  if (pro) return `Pro L${pro.level}`
+  const q = questById(id)
+  return q?.num === 0 ? 'Base Camp' : `Q${q?.num}`
 }
 
 /**
@@ -108,7 +121,7 @@ export default function MentorPage() {
 /** One learner up close: pace, quests vs deadlines, check-ins, notes, chats, and a cheer box. */
 function LearnerDetail({ userId, onBack }: { userId: string; onBack: () => void }) {
   const { today, error } = useQuest()
-  const [data, setData] = useState<{ state: QuestState; messages: Msg[] } | null>(null)
+  const [data, setData] = useState<{ state: QuestState; messages: Msg[]; evidence?: Submission[] } | null>(null)
   const [cheer, setCheer] = useState('')
   const [sent, setSent] = useState(false)
 
@@ -288,6 +301,28 @@ function LearnerDetail({ userId, onBack }: { userId: string; onBack: () => void 
         </div>
       </section>
 
+      <section className="stack-sm" aria-labelledby="pro-ev-h">
+        <h2 id="pro-ev-h" style={{ fontSize: 'var(--text-2xl)' }}>Pro track evidence</h2>
+        {data.evidence?.length ? data.evidence.map((s) => <SubmissionCard key={s.id} s={s} compact />) : <p className="muted">No evidence yet.</p>}
+      </section>
+
+      {PRO_CHATS.map((t) => {
+        const ms = messages.filter((m) => m.task_id === t.id)
+        if (!ms.length) return null
+        return (
+          <details key={t.id} className="chat card">
+            <summary>
+              Pro L{t.level} · {t.title} ({ms.filter((m) => m.role === 'user').length} questions)
+            </summary>
+            {ms.map((m) => (
+              <div key={m.id} className={`bubble ${m.role === 'user' ? 'bubble--me' : 'bubble--spark'}`} style={{ whiteSpace: 'pre-wrap' }}>
+                {m.content}
+              </div>
+            ))}
+          </details>
+        )
+      })}
+
       {messages.some((m) => m.task_id === 'general') && (
         <details className="chat card">
           <summary>General chats with Spark</summary>
@@ -309,7 +344,7 @@ function LearnerDetail({ userId, onBack }: { userId: string; onBack: () => void 
             <li key={i}>
               <time>{when(a.at)}</time>
               <span>
-                {FEED[a.kind] || a.kind} {a.task_id ? <b>{questById(a.task_id)?.num === 0 ? 'Base Camp' : `Q${questById(a.task_id)?.num}`}</b> : null}
+                {FEED[a.kind] || a.kind} {a.task_id ? <b>{taskLabel(a.task_id)}</b> : null}
                 {a.detail ? `${a.kind === 'onboarded' ? ' ' : ' — '}${a.detail}` : ''}
               </span>
             </li>

@@ -41,9 +41,6 @@ export default function QuestView({ quest: q }: { quest: Quest }) {
   const due = deadlineOf(sum.slots, q.id)
   const prevQuest = QUESTS[QUESTS.findIndex((x) => x.id === q.id) - 1]
   const [swap, setSwap] = useState(false)
-  useEffect(() => {
-    document.title = `${v.title} · AI Quest`
-  }, [v.title])
 
   return (
     <div data-tone={lv.tone}>

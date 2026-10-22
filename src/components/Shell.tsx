@@ -2,9 +2,8 @@
 
 import { motion } from 'motion/react'
 import Link from 'next/link'
-import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { BookOpen, CalendarDays, Flame, Map as MapIcon, Shield, Trophy } from 'lucide-react'
+import { BookOpen, CalendarDays, Flame, Map as MapIcon, Rocket, Shield, Trophy } from 'lucide-react'
 import { firstName } from '@/lib/game'
 import { questById } from '@/lib/quest'
 import { toolOf } from '@/lib/tools'
@@ -16,27 +15,14 @@ const NAV = [
   { href: '/schedule', label: 'Plan', icon: CalendarDays },
   { href: '/trophies', label: 'Trophies', icon: Trophy },
   { href: '/guide', label: 'Guide', icon: BookOpen },
+  { href: '/pro', label: 'Pro', icon: Rocket },
 ]
-
-const TITLES: Record<string, string> = {
-  '/': 'Quest map',
-  '/schedule': 'Plan',
-  '/trophies': 'Trophies',
-  '/guide': 'Guide',
-  '/profile': 'You',
-  '/mentor': 'Mentor HQ',
-}
 
 /** App chrome: the top bar with the XP/streak HUD, phone tab bar, and the Spark button. */
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { sum, state, openCoach, setup } = useQuest()
   const path = usePathname() || '/'
-  const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/quest') : path.startsWith(href))
-  // Distinct page titles (WCAG 2.4.2); QuestView sets its own.
-  useEffect(() => {
-    const label = TITLES[path]
-    if (label && !path.startsWith('/quest/')) document.title = `${label} · AI Quest`
-  }, [path])
+  const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/quest') : path === href || path.startsWith(`${href}/`))
   const questId = path.startsWith('/quest/') ? path.split('/')[2] : 'general'
   const toNext = sum.rank.next ? sum.rank.next - sum.xp : 0
   const toolName = setup.tool === 'other' ? state.profile?.tool_other || 'your agent' : toolOf(setup.tool).name

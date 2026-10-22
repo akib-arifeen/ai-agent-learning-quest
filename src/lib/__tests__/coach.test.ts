@@ -15,6 +15,7 @@ const state = (profile: Profile | null): QuestState => ({
   days: [],
   cheers: [],
   coachMessages: 0,
+  pro: { tasks: {}, hasToken: false, lastUsed: null },
   files: [],
   profile,
 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
-import { Heart, X } from 'lucide-react'
+import { Heart, Rocket, X } from 'lucide-react'
 import Onboarding from '@/components/Onboarding'
 import QuestMap from '@/components/QuestMap'
 import { useQuest } from '@/components/QuestProvider'
@@ -11,6 +11,7 @@ import { Stats } from '@/components/Stats'
 import { useEffect, useState } from 'react'
 import Today from '@/components/Today'
 import { firstName } from '@/lib/game'
+import { PRO_TASKS } from '@/lib/pro'
 import { showPersonalisePrompt } from '@/lib/profile'
 
 /** Time-of-day greeting. */
@@ -34,6 +35,22 @@ export default function Home() {
   const { sum, state, now, dismissCheer, saveProfile } = useQuest()
   const name = firstName(state.user.name)
   const cheer = state.cheers.find((c) => !c.seen_at)
+  const proPassed = PRO_TASKS.filter((t) => state.pro.tasks[t.id]?.passed).length
+  const proFirst = state.profile?.experience === 'comfortable' || state.profile?.role === 'developer'
+  const proCard = (
+    <Link href="/pro" className="card procard">
+      <span className="procard__ico" aria-hidden>
+        <Rocket size={22} />
+      </span>
+      <span className="procard__txt">
+        <b>Pro track</b>
+        <span className="muted">Work like a pro: MCP, skills, hooks, subagents and more. Your agent sends the proof.</span>
+      </span>
+      <span className="chip chip--mint tnum">
+        {proPassed} of {PRO_TASKS.length} passed
+      </span>
+    </Link>
+  )
   // Spark waves for the first few seconds after you arrive, then settles into its mood.
   const [hi, setHi] = useState(true)
   const [personalising, setPersonalising] = useState(false)
@@ -103,8 +120,10 @@ export default function Home() {
           )}
         </AnimatePresence>
 
+        {proFirst && proCard}
         <Today />
         <Stats />
+        {!proFirst && proCard}
         <Link href="/trophies" className="linkbtn" style={{ justifySelf: 'start' }}>
           See your trophies & badges →
         </Link>

@@ -70,6 +70,12 @@ export type Tool = {
   sources: string[]
   /** YYYY-MM-DD the facts were checked. */
   checked: string
+  /**
+   * How to connect the Quest MCP server (remote, streamable HTTP, bearer token) in this
+   * tool: the config file or command, and a snippet with {url} and {token} placeholders.
+   * Every entry sets it (a test enforces that).
+   */
+  mcp: { where: string; snippet: string; note?: string; source: string }
 }
 
 const KILO: Tool = {
@@ -117,6 +123,21 @@ const KILO: Tool = {
     'https://kilo.ai/docs/customize/custom-instructions',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to ~/.config/kilo/kilo.jsonc (your user config, so the token never lands in a repo)',
+    snippet: `{
+  "mcp": {
+    "quest": {
+      "type": "remote",
+      "url": "{url}",
+      "headers": { "Authorization": "Bearer {token}" },
+      "enabled": true
+    }
+  }
+}`,
+    note: 'Kilo tries Streamable HTTP, then SSE. If it starts an OAuth login, add "oauth": false to the quest entry.',
+    source: 'https://kilo.ai/docs/automate/mcp/using-in-kilo-code',
+  },
 }
 
 /** Any other tool: plain wording that holds for every agent, and points at its own docs. */
@@ -151,6 +172,12 @@ const OTHER: Tool = {
   docs: 'https://agents.md',
   sources: ['https://agents.md'],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Paste this into your agent’s MCP settings (check its MCP docs for where)',
+    snippet: 'Add a remote (streamable HTTP) MCP server named quest at {url} with header Authorization: Bearer {token}',
+    note: 'Look for “MCP” or “remote server” in your agent’s docs. Use the same name, URL and header.',
+    source: 'https://modelcontextprotocol.io',
+  },
 }
 
 const COPY_PATH = 'Windows: Shift + right-click → Copy as path · Mac: right-click, hold Option → Copy “…” as Pathname.'
@@ -205,6 +232,21 @@ const OPENCODE: Tool = {
     'https://opencode.ai/v2/docs/console/models/',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to opencode.json in your project',
+    snippet: `{
+  "mcp": {
+    "quest": {
+      "type": "remote",
+      "url": "{url}",
+      "enabled": true,
+      "headers": { "Authorization": "Bearer {env:QUEST_TOKEN}" }
+    }
+  }
+}`,
+    note: 'Run export QUEST_TOKEN={token} in the terminal before starting opencode (or add it to your shell profile).',
+    source: 'https://opencode.ai/docs/mcp-servers/',
+  },
 }
 
 const CLAUDE_CODE: Tool = {
@@ -258,6 +300,12 @@ const CLAUDE_CODE: Tool = {
     'https://code.claude.com/docs/en/commands',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Run in your terminal',
+    snippet: 'claude mcp add --transport http quest {url} --header "Authorization: Bearer {token}"',
+    note: 'This stores it in your user config, not the repo. Don\'t use --scope project with a real token: .mcp.json gets committed.',
+    source: 'https://code.claude.com/docs/en/mcp',
+  },
 }
 
 const CURSOR: Tool = {
@@ -306,6 +354,18 @@ const CURSOR: Tool = {
     'https://cursor.com/docs/reference/keyboard-shortcuts',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to ~/.cursor/mcp.json (your user config, so the token never lands in a repo)',
+    snippet: `{
+  "mcpServers": {
+    "quest": {
+      "url": "{url}",
+      "headers": { "Authorization": "Bearer {token}" }
+    }
+  }
+}`,
+    source: 'https://cursor.com/help/customization/mcp',
+  },
 }
 
 const WINDSURF: Tool = {
@@ -354,6 +414,19 @@ const WINDSURF: Tool = {
     'https://docs.devin.ai/desktop/cascade/memories',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to ~/.config/devin/mcp_config.json (Mac or Linux) or %APPDATA%\\devin\\mcp_config.json (Windows)',
+    snippet: `{
+  "mcpServers": {
+    "quest": {
+      "serverUrl": "{url}",
+      "headers": { "Authorization": "Bearer {token}" }
+    }
+  }
+}`,
+    note: 'The key is serverUrl, not url.',
+    source: 'https://docs.devin.ai/desktop/cascade/mcp',
+  },
 }
 
 const COPILOT: Tool = {
@@ -403,6 +476,23 @@ const COPILOT: Tool = {
     'https://code.visualstudio.com/docs/agent-customization/custom-instructions',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to .vscode/mcp.json in your project',
+    snippet: `{
+  "inputs": [
+    { "type": "promptString", "id": "quest-token", "description": "Quest token", "password": true }
+  ],
+  "servers": {
+    "quest": {
+      "type": "http",
+      "url": "{url}",
+      "headers": { "Authorization": "Bearer \${input:quest-token}" }
+    }
+  }
+}`,
+    note: 'VS Code asks for the token once and keeps it in its secret storage. Paste {token} when asked.',
+    source: 'https://code.visualstudio.com/docs/agents/reference/mcp-configuration',
+  },
 }
 
 const ANTIGRAVITY: Tool = {
@@ -454,6 +544,19 @@ const ANTIGRAVITY: Tool = {
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to .agents/mcp_config.json in your project (or ~/.gemini/config/mcp_config.json for every project)',
+    snippet: `{
+  "mcpServers": {
+    "quest": {
+      "serverUrl": "{url}",
+      "headers": { "Authorization": "Bearer {token}" }
+    }
+  }
+}`,
+    note: 'The key is serverUrl, not url.',
+    source: 'https://antigravity.google/docs/mcp',
+  },
 }
 
 const GEMINI_CLI: Tool = {
@@ -500,6 +603,12 @@ const GEMINI_CLI: Tool = {
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Run in your terminal',
+    snippet: 'gemini mcp add --transport http -H "Authorization: Bearer {token}" quest {url}',
+    note: 'Check which settings file it wrote to; keep the token out of any project file you commit.',
+    source: 'https://geminicli.com/docs/tools/mcp-server/',
+  },
 }
 
 const CODEX: Tool = {
@@ -551,6 +660,14 @@ const CODEX: Tool = {
     'https://learn.chatgpt.com/docs/agent-configuration/agents-md',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to ~/.codex/config.toml, then set the environment variable in your terminal',
+    snippet: `[mcp_servers.quest]
+url = "{url}"
+bearer_token_env_var = "QUEST_TOKEN"`,
+    note: 'Then, in your terminal: `export QUEST_TOKEN={token}` (add it to your shell profile to keep it).',
+    source: 'https://learn.chatgpt.com/docs/extend/mcp?surface=cli',
+  },
 }
 
 const CLINE: Tool = {
@@ -598,6 +715,20 @@ const CLINE: Tool = {
     'https://cline.bot/pricing',
   ],
   checked: '2026-10-22',
+  mcp: {
+    where: 'Add to cline_mcp_settings.json (open it with “Configure MCP Servers” in the Cline panel)',
+    snippet: `{
+  "mcpServers": {
+    "quest": {
+      "type": "streamableHttp",
+      "url": "{url}",
+      "headers": { "Authorization": "Bearer {token}" }
+    }
+  }
+}`,
+    note: 'The "type" line is required.',
+    source: 'https://docs.cline.bot/mcp/configuring-mcp-servers',
+  },
 }
 
 export const TOOLS: Record<ToolId, Tool> = {

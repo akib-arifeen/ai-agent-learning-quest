@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { getLearner, getPasswordHash, listLearners, loadState, recentMessages, setPassword } from '@/lib/db'
+import { getLearner, getPasswordHash, listEvidence, listLearners, loadState, recentMessages, setPassword } from '@/lib/db'
 import { fail, json, me } from '@/lib/http'
 import { hashPassword } from '@/lib/session'
 
@@ -17,8 +17,13 @@ export async function GET(req: Request) {
   if (id) {
     const learner = await getLearner(id)
     if (!learner) return fail('Unknown learner.', 404)
-    const [state, messages] = await Promise.all([loadState(learner), recentMessages(learner.id)])
-    return json({ state, messages })
+    const [state, messages, evidence] = await Promise.all([loadState(learner), recentMessages(learner.id), listEvidence(learner.id, undefined, 10)])
+    // Cut long item content in the response only (stored data is untouched) and say so.
+    const cut = evidence.map((s) => ({
+      ...s,
+      items: s.items.map((it) => (it.content.length > 4000 ? { ...it, content: it.content.slice(0, 4000), truncated: true } : it)),
+    }))
+    return json({ state, messages, evidence: cut })
   }
   const learners = await listLearners()
   const states = await Promise.all(learners.map((l) => loadState(l)))

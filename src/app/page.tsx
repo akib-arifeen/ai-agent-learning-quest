@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from 'motion/react'
 import { Heart, X } from 'lucide-react'
+import Onboarding from '@/components/Onboarding'
 import QuestMap from '@/components/QuestMap'
 import { useQuest } from '@/components/QuestProvider'
 import Link from 'next/link'
@@ -10,6 +11,7 @@ import { Stats } from '@/components/Stats'
 import { useEffect, useState } from 'react'
 import Today from '@/components/Today'
 import { firstName } from '@/lib/game'
+import { showPersonalisePrompt } from '@/lib/profile'
 
 /** Time-of-day greeting. */
 const hello = (h: number) => (h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
@@ -29,11 +31,12 @@ function sparkLine(sum: ReturnType<typeof useQuest>['sum']) {
 
 /** Home: today's mission, stats and badges on the side, the quest map on the right. */
 export default function Home() {
-  const { sum, state, now, dismissCheer } = useQuest()
+  const { sum, state, now, dismissCheer, saveProfile } = useQuest()
   const name = firstName(state.user.name)
   const cheer = state.cheers.find((c) => !c.seen_at)
   // Spark waves for the first few seconds after you arrive, then settles into its mood.
   const [hi, setHi] = useState(true)
+  const [personalising, setPersonalising] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setHi(false), 3500)
     return () => clearTimeout(t)
@@ -76,6 +79,30 @@ export default function Home() {
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {showPersonalisePrompt(state) && (
+            <motion.div
+              className="personalise"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <Spark size={44} mood="wave" bob={false} />
+              <div style={{ minWidth: 0 }}>
+                <b>Make the quest yours</b>
+                <p>Tell me your tool, goal and computer, and every quest speaks your tool’s language. About a minute.</p>
+                <button type="button" className="btn btn--sm" onClick={() => setPersonalising(true)}>
+                  Personalise
+                </button>
+              </div>
+              <button type="button" className="iconbtn" onClick={() => void saveProfile({ dismiss: true })} aria-label="Dismiss">
+                <X size={18} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <Today />
         <Stats />
         <Link href="/trophies" className="linkbtn" style={{ justifySelf: 'start' }}>
@@ -85,6 +112,7 @@ export default function Home() {
       <section aria-label="Quest map">
         <QuestMap />
       </section>
+      {personalising && <Onboarding mode="edit" onDone={() => setPersonalising(false)} />}
     </div>
   )
 }

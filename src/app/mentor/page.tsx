@@ -7,7 +7,9 @@ import { FileThumb } from '@/components/Creations'
 import PageHead from '@/components/PageHead'
 import { useQuest } from '@/components/QuestProvider'
 import { type QuestState, dayOf, deadlineOf, firstName, fmtDay, questStatus, summarize } from '@/lib/game'
+import { setupOf } from '@/lib/profile'
 import { QUESTS, questById, variantOf } from '@/lib/quest'
+import { toolOf } from '@/lib/tools'
 
 type Msg = { id: number; task_id: string; role: string; content: string; created_at: string }
 
@@ -26,6 +28,7 @@ const FEED: Record<string, string> = {
   unbusy: 'unmarked busy',
   coach: 'asked Spark',
   cheer: 'you cheered',
+  onboarded: 'personalised their quest for',
 }
 
 /**
@@ -84,6 +87,11 @@ export default function MentorPage() {
                   Rank {sum.rank.level} · {sum.xp} XP · {sum.questsDone}/10 quests · streak {sum.streak}
                 </small>
                 <small>Last seen {when(st.user.lastSeen)}</small>
+                {st.profile?.tool && (
+                  <small>
+                    <span className="chip chip--line">{toolOf(st.profile.tool).name}</span>
+                  </small>
+                )}
               </span>
               <span className={`chip ${sum.pace.behind ? 'chip--coral' : sum.pace.ahead ? 'chip--mint' : 'chip--pear'}`}>
                 {sum.pace.finished ? 'Finished' : sum.pace.behind ? `${sum.pace.behind} behind` : sum.pace.ahead ? `${sum.pace.ahead} ahead` : 'On track'}
@@ -191,7 +199,7 @@ function LearnerDetail({ userId, onBack }: { userId: string; onBack: () => void 
         <div className="mq">
           {QUESTS.map((q) => {
             const p = state.progress[q.id]
-            const v = variantOf(q, p?.variant)
+            const v = variantOf(q, p?.variant, setupOf(state.profile))
             const st = questStatus(state, q)
             const due = deadlineOf(sum.slots, q.id)
             const doneDay = p?.completed_at ? dayOf(p.completed_at) : ''
@@ -302,7 +310,7 @@ function LearnerDetail({ userId, onBack }: { userId: string; onBack: () => void 
               <time>{when(a.at)}</time>
               <span>
                 {FEED[a.kind] || a.kind} {a.task_id ? <b>{questById(a.task_id)?.num === 0 ? 'Base Camp' : `Q${questById(a.task_id)?.num}`}</b> : null}
-                {a.detail ? ` — ${a.detail}` : ''}
+                {a.detail ? `${a.kind === 'onboarded' ? ' ' : ' — '}${a.detail}` : ''}
               </span>
             </li>
           ))}

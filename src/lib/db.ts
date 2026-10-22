@@ -7,6 +7,7 @@
 
 import postgres from 'postgres'
 import type { Activity, Checkin, Cheer, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
+import type { Profile, ProfilePatch } from './profile'
 
 // One client per server instance. `prepare: false` because Neon's pooled URL sits
 // behind PgBouncer, which can't hold prepared statements across transactions.
@@ -112,6 +113,21 @@ create table if not exists quest_cheers (
   created_at timestamptz not null default now(),
   seen_at timestamptz
 );
+create table if not exists quest_profiles (
+  user_id text primary key references quest_users (id) on delete cascade,
+  role text not null default '',
+  role_other text not null default '',
+  experience text not null default '',
+  goal text not null default '',
+  tool text not null default '',
+  tool_other text not null default '',
+  os text not null default '',
+  weekly_minutes int,
+  completed_at timestamptz,
+  dismissed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 `
 
 let ready: Promise<void> | null = null
@@ -168,7 +184,7 @@ export async function touchUser(u: { id: string; email: string; name: string; im
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
   const id = user.id
-  const [progress, busy, checkins, activity, days, cheers, msgs, files] = await Promise.all([
+  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile] = await Promise.all([
     sql`select * from quest_progress where user_id = ${id}`,
     sql`select to_char(day, 'YYYY-MM-DD') as day from quest_busy where user_id = ${id} order by day`,
     sql`select id, task_id, message, image is not null as has_image, created_at from quest_checkins where user_id = ${id} order by id desc limit 200`,
@@ -182,6 +198,7 @@ export async function loadState(user: Learner): Promise<QuestState> {
     sql`select id, from_name, message, created_at, seen_at from quest_cheers where user_id = ${id} order by id desc limit 20`,
     sql`select count(*)::int as n from quest_messages where user_id = ${id} and role = 'user'`,
     sql`select id, task_id, url, name, content_type, size, created_at from quest_files where user_id = ${id} order by id desc limit 500`,
+    sql`select * from quest_profiles where user_id = ${id}`,
   ])
   return {
     user,
@@ -194,7 +211,46 @@ export async function loadState(user: Learner): Promise<QuestState> {
     cheers: cheers.map((r) => ({ ...r, created_at: iso(r.created_at), seen_at: iso(r.seen_at) })) as unknown as Cheer[],
     coachMessages: Number(msgs[0]?.n || 0),
     files: files.map((r) => ({ ...r, id: Number(r.id), size: Number(r.size), created_at: iso(r.created_at) })) as unknown as QuestFile[],
+    profile: profile[0] ? toProfile(profile[0]) : null,
   }
+}
+
+/** Map a quest_profiles row to the client's Profile shape. */
+const toProfile = (r: Record<string, unknown>): Profile => ({
+  role: String(r.role || '') as Profile['role'],
+  role_other: String(r.role_other || ''),
+  experience: String(r.experience || '') as Profile['experience'],
+  goal: String(r.goal || ''),
+  tool: String(r.tool || '') as Profile['tool'],
+  tool_other: String(r.tool_other || ''),
+  os: String(r.os || '') as Profile['os'],
+  weekly_minutes: r.weekly_minutes == null ? null : Number(r.weekly_minutes),
+  completed_at: iso(r.completed_at),
+  dismissed_at: iso(r.dismissed_at),
+})
+
+/**
+ * Save onboarding answers: only the fields in the (already validated) patch change, so a
+ * later step can't wipe an earlier one. `complete` / `dismiss` stamp their timestamps.
+ */
+export async function saveProfile(userId: string, patch: ProfilePatch): Promise<Profile> {
+  await ensureSchema()
+  const { complete, dismiss, ...fields } = patch
+  const row: Record<string, unknown> = { ...fields, updated_at: new Date() }
+  if (complete) row.completed_at = new Date()
+  if (dismiss) row.dismissed_at = new Date()
+  await sql`insert into quest_profiles (user_id) values (${userId}) on conflict do nothing`
+  const rows = await sql`
+    update quest_profiles set ${sql(row as Record<string, postgres.ParameterOrJSON<never>>, ...Object.keys(row))}
+    where user_id = ${userId} returning *`
+  return toProfile(rows[0])
+}
+
+/** The learner's saved profile (null if they have none yet). */
+export async function getProfile(userId: string): Promise<Profile | null> {
+  await ensureSchema()
+  const rows = await sql`select * from quest_profiles where user_id = ${userId}`
+  return rows[0] ? toProfile(rows[0]) : null
 }
 
 /** One quest's progress row (null if they haven't started it). */

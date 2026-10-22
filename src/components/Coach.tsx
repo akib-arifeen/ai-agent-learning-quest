@@ -30,7 +30,7 @@ function useWide() {
  * in token by token.
  */
 export default function Coach({ open, taskId, draft, onClose }: { open: boolean; taskId: string; draft: string; onClose: () => void }) {
-  const { today, state, coachSent } = useQuest()
+  const { today, state, coachSent, setup } = useQuest()
   const wide = useWide()
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -44,7 +44,7 @@ export default function Coach({ open, taskId, draft, onClose }: { open: boolean;
   showing.current = taskId
 
   const q = questById(taskId)
-  const v = q ? variantOf(q, state.progress[q.id]?.variant) : null
+  const v = q ? variantOf(q, state.progress[q.id]?.variant, setup) : null
 
   // Load this quest's history the first time the panel opens on it.
   useEffect(() => {

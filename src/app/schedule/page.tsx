@@ -6,6 +6,7 @@ import { useState } from 'react'
 import PageHead from '@/components/PageHead'
 import { useQuest } from '@/components/QuestProvider'
 import { addDays, daysBetween, deadlineOf, fmtDay } from '@/lib/game'
+import { WEEKLY } from '@/lib/profile'
 import { DAY_RULES, questById, variantOf } from '@/lib/quest'
 
 /**
@@ -14,8 +15,9 @@ import { DAY_RULES, questById, variantOf } from '@/lib/quest'
  * is protected. Past days she skipped without marking show as "missed".
  */
 export default function SchedulePage() {
-  const { sum, state, today, setBusy } = useQuest()
+  const { sum, state, today, setBusy, setup } = useQuest()
   const busy = new Set(state.busy)
+  const weeklyLabel = state.profile?.weekly_minutes ? WEEKLY.find((w) => w.minutes === state.profile?.weekly_minutes)?.label : ''
   const bySlot = new Map(sum.slots.map((s) => [s.date, s]))
   const last = sum.slots[sum.slots.length - 1]?.date || today
   const [all, setAll] = useState(false)
@@ -47,6 +49,11 @@ export default function SchedulePage() {
         <PageHead title="Your plan">
           One sitting a day · finish line <b style={{ color: 'var(--color-ink)' }}>{fmtDay(last, { weekday: 'long', day: 'numeric', month: 'long' })}</b>
         </PageHead>
+        {weeklyLabel && (
+          <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+            You said about {weeklyLabel} a week. The plan is one sitting a day; on days you can’t, mark them busy and the plan slides back.
+          </p>
+        )}
 
         {weeks.map(
           (w, wi) =>
@@ -74,7 +81,7 @@ export default function SchedulePage() {
                         ) : slot ? (
                           slot.items.map((i) => {
                             const q = questById(i.questId)!
-                            const v = variantOf(q, state.progress[q.id]?.variant)
+                            const v = variantOf(q, state.progress[q.id]?.variant, setup)
                             return (
                               <span key={`${i.questId}-${i.n}`} style={{ display: 'grid' }}>
                                 <span className="row" style={{ gap: 6, flexWrap: 'nowrap', minWidth: 0 }}>

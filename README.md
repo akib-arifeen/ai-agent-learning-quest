@@ -1,6 +1,6 @@
 # Creative AI Agent Quest
 
-A gamified, AI-coached course for creative people learning to build with AI agents (Kilo Code, free tier): 10 quests with XP, streaks, badges and a day-by-day plan, plus Spark, an AI coach that helps you write your own prompts instead of handing you finished ones. Open to anyone; mentors get a dashboard to see where learners get stuck.
+A gamified, AI-coached course for anyone learning to build with AI coding agents: 10 quests with XP, streaks, badges and a day-by-day plan, plus Spark, an AI coach that helps you write your own prompts instead of handing you finished ones. A one-minute onboarding fits the course to your background and your tool (Kilo Code, OpenCode, Claude Code, Cursor, Copilot and more), and suggests Kilo Code or OpenCode as the free way to start. Mentors get a dashboard to see where learners get stuck.
 
 **Live:** https://creative-ai-agent-quest.vercel.app · **Mentor view:** https://creative-ai-agent-quest.vercel.app/mentor
 
@@ -11,6 +11,8 @@ Sign-in is all in-house (no auth service, no quota): **Google** (Google's own bu
 | Feature | Where |
 |---|---|
 | Quest content: 11 quests × 3 variants (original + 2 remixes that teach the same concept) | `src/lib/quest.ts` (edit the wording here, and only here) |
+| Every supported AI tool: install steps per OS, cheat sheet, plan/undo/rules wording, price, with the official source for each fact. Quest text uses slots like `{plan}` that `variantOf` fills per tool | `src/lib/tools.ts` |
+| Onboarding answers (role, experience, goal, tool, computer, time a week), validation, who sees onboarding vs the prompt | `src/lib/profile.ts` · `src/components/Onboarding.tsx` · `/profile` |
 | XP, ranks, streaks, badges, schedule, pace. All derived from progress, never stored | `src/lib/game.ts` |
 | Postgres (Neon) access, every table keyed by the Google account id; the schema is created automatically on first request | `src/lib/db.ts` |
 | Sessions, password hashing, Google token check, mentor allow-list | `src/lib/session.ts` · `src/app/api/session/route.ts` |
@@ -27,7 +29,7 @@ Schedule rule: one sitting per day from the learner's first sign-in. Marking a d
 ```bash
 npm install
 npm run dev            # needs .env.development.local (below)
-npx tsc --noEmit && npx eslint src
+npx tsc --noEmit && npx eslint src && npm test
 ```
 
 `.env.development.local` points at a separate test database, so local testing never touches real learners' data:

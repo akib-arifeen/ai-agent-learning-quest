@@ -6,11 +6,17 @@ import './globals.css'
 const jakarta = Plus_Jakarta_Sans({ variable: '--font-jakarta', subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 const jetbrains = JetBrains_Mono({ variable: '--font-jetbrains', subsets: ['latin'], weight: ['400', '500'] })
 
+const title = 'Creative AI Agent Quest'
+const description = 'A gamified, AI-coached course for building real things with AI coding agents. Works with Kilo Code, OpenCode, Claude Code, Cursor and more. Free to start.'
+
 export const metadata: Metadata = {
-  title: 'Creative AI Agent Quest',
-  description: '10 quests, one AI coach, and a lot of glowing things — learn to build with AI agents.',
+  metadataBase: new URL('https://creative-ai-agent-quest.vercel.app'),
+  title: { default: title, template: '%s · AI Quest' },
+  description,
+  openGraph: { type: 'website', siteName: title, title, description, url: '/' },
+  twitter: { card: 'summary_large_image', title, description },
   appleWebApp: { capable: true, title: 'AI Quest', statusBarStyle: 'default' },
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
 }
 
 export const viewport: Viewport = {

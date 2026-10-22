@@ -1,10 +1,13 @@
 'use client'
 
-import { ChevronDown, GraduationCap, LifeBuoy, Lock, Rocket, Terminal, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronDown, GraduationCap, LifeBuoy, Lock, Rocket, Terminal, Wrench, Zap } from 'lucide-react'
 import PageHead from '@/components/PageHead'
 import { useQuest } from '@/components/QuestProvider'
-import { isComplete } from '@/lib/game'
-import { BRIEF_RECIPE, FREE_TIER_HABITS, KILO_CHEATS, LEVELS, QUESTS, UPGRADE_SIGNS, WHEN_STUCK, variantOf } from '@/lib/quest'
+import Rich from '@/components/Rich'
+import { fmtDay, isComplete } from '@/lib/game'
+import { BRIEF_RECIPE, FREE_TIER_HABITS, LEVELS, QUESTS, UPGRADE_SIGNS, WHEN_STUCK, variantOf } from '@/lib/quest'
+import { forTool, toolOf } from '@/lib/tools'
 
 /** A titled section that stays folded until it's needed — the guide shows two things open, not seven. */
 function Fold({ icon: Icon, title, hint, children }: { icon: typeof Zap; title: string; hint: string; children: React.ReactNode }) {
@@ -31,7 +34,8 @@ function Fold({ icon: Icon, title, hint, children }: { icon: typeof Zap; title: 
  * folded into one tidy list.
  */
 export default function GuidePage() {
-  const { state } = useQuest()
+  const { state, setup } = useQuest()
+  const tool = toolOf(setup.tool)
   const collected = QUESTS.filter((q) => isComplete(state.progress[q.id])).length
 
   return (
@@ -52,47 +56,64 @@ export default function GuidePage() {
           {BRIEF_RECIPE.map((b) => (
             <div key={b.k}>
               <b>{b.k}</b>
-              <p>{b.v}</p>
+              <p>{forTool(b.v, setup)}</p>
             </div>
           ))}
         </div>
       </section>
 
       <div className="stack-sm">
-        <Fold icon={Terminal} title="Kilo Code cheat sheet" hint="Agents, the free model, adding files, undo, rules">
+        <Fold icon={Terminal} title={tool.id === 'other' ? 'Your agent’s cheat sheet' : `${tool.name} cheat sheet`} hint="Modes, models, adding files, undo, rules">
           <div className="cheat">
-            {KILO_CHEATS.map((c) => (
+            {tool.cheats.map((c) => (
               <div key={c.k}>
                 <b>{c.k}</b>
-                <p>{c.v}</p>
+                <p>
+                  <Rich text={c.v} />
+                </p>
               </div>
             ))}
           </div>
           <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
             Docs:{' '}
-            <a href="https://kilo.ai/docs" target="_blank" rel="noreferrer">
-              kilo.ai/docs
+            <a href={tool.docs} target="_blank" rel="noreferrer">
+              {tool.docs.replace(/^https?:\/\//, '')}
             </a>
           </p>
+          <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+            Checked {fmtDay(tool.checked, { day: 'numeric', month: 'long', year: 'numeric' })} against the official docs
+          </p>
+          <details className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+            <summary>Sources</summary>
+            <ul>
+              {tool.sources.map((u) => (
+                <li key={u}>
+                  <a href={u} target="_blank" rel="noreferrer">
+                    {u.replace(/^https?:\/\//, '')}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
         </Fold>
-        <Fold icon={Zap} title="Free-tier habits" hint="Five habits that keep the free models happy">
+        <Fold icon={Zap} title="Habits that keep the agent sharp" hint="Five habits that keep any agent on track">
           <ol className="numlist">
             {FREE_TIER_HABITS.map((h) => (
-              <li key={h}>{h}</li>
+              <li key={h}>{forTool(h, setup)}</li>
             ))}
           </ol>
         </Fold>
         <Fold icon={LifeBuoy} title="When you’re stuck" hint="What to try before you give up">
           <ol className="numlist">
             {WHEN_STUCK.map((h) => (
-              <li key={h}>{h}</li>
+              <li key={h}>{forTool(h, setup)}</li>
             ))}
           </ol>
         </Fold>
         <Fold icon={GraduationCap} title="Concept cards" hint={`${collected} of ${QUESTS.length} collected — every finished quest adds one`}>
           <div className="concepts">
             {QUESTS.map((q) => {
-              const v = variantOf(q, state.progress[q.id]?.variant)
+              const v = variantOf(q, state.progress[q.id]?.variant, setup)
               const got = isComplete(state.progress[q.id])
               return (
                 <div key={q.id} className={`concept-card ${got ? '' : 'is-locked'}`} data-tone={LEVELS[q.level].tone}>
@@ -108,12 +129,19 @@ export default function GuidePage() {
             })}
           </div>
         </Fold>
-        <Fold icon={Rocket} title="When to upgrade" hint="Signs you’ve outgrown the free tier (e.g. Kimi Code)">
-          <ol className="numlist">
-            {UPGRADE_SIGNS.map((h) => (
-              <li key={h}>{h}</li>
-            ))}
-          </ol>
+        {tool.free && (
+          <Fold icon={Rocket} title="When to upgrade" hint="Signs you’ve outgrown the free models">
+            <ol className="numlist">
+              {UPGRADE_SIGNS.map((h) => (
+                <li key={h}>{forTool(h, setup)}</li>
+              ))}
+            </ol>
+          </Fold>
+        )}
+        <Fold icon={Wrench} title="Using a different tool?" hint="Switch any time; the quests reword themselves">
+          <p>
+            <Link href="/profile">Change your tool in your profile →</Link>
+          </p>
         </Fold>
       </div>
     </div>

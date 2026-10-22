@@ -1,14 +1,16 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ArrowLeft, ArrowRight, Camera, Check, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Camera, Check, Compass, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { toolOf } from '@/lib/tools'
 import { confetti } from './Celebrate'
 import Spark, { type Mood } from './Spark'
 
 const POINTS = [
   { icon: MapIcon, text: '10 quests, from glowing toys to a real game' },
   { icon: MessageCircle, text: 'Spark, a coach who helps without doing it for you' },
+  { icon: Compass, text: 'Fits your background and the AI tool you use' },
   { icon: Flame, text: 'XP, streaks and a plan that fits your week' },
 ]
 
@@ -21,11 +23,13 @@ const NODES = [
   { tone: 'coral', n: 10, x: 46, y: 11, boss: true },
 ] as const
 
-const SOON = [
-  { title: 'Quests shaped by your interests', body: 'Tell Spark what you love — games, film, music — and your path bends to it.' },
-  { title: 'Fresh quests as you grow', body: 'Finish the ten and new ones get generated at your level.' },
-  { title: 'Visual tutorials made for you', body: 'Step-by-step walkthroughs with pictures, for the exact tool you’re in.' },
+const STEPS = [
+  { title: 'Tell Spark about you', body: 'Your background, what you want to build and the AI tool you use. About a minute.' },
+  { title: 'Set up your agent', body: 'Start free with Kilo Code or OpenCode, or bring the tool you already pay for. Step by step for your computer.' },
+  { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark coaches; you write the prompts.' },
 ]
+
+const WORKS_WITH = ['kilo', 'opencode', 'claude-code', 'cursor', 'copilot']
 
 const TAKEOVER_SIZE = 220
 
@@ -100,7 +104,16 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
         >
           Start learning <ArrowRight className="btn__arrow" size={22} strokeWidth={2.6} />
         </motion.button>
-        <p className="signin__fine">Free. Sign in with Google or email on the next step — your progress saves, and you stay signed in.</p>
+        <div className="signin__works">
+          <span className="mono muted">Works with</span>
+          {WORKS_WITH.map((id) => (
+            <span key={id} className="chip">
+              {toolOf(id).name}
+            </span>
+          ))}
+          <span className="muted">and more</span>
+        </div>
+        <p className="signin__fine">Free to start with Kilo Code or OpenCode. Sign in with Google or email on the next step. Your progress saves, and you stay signed in.</p>
       </motion.section>
 
       <div className="signin__art" aria-hidden>
@@ -163,10 +176,10 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
         </div>
       </div>
 
-      <section className="soon" aria-label="Coming soon">
-        <span className="mono muted">Coming soon</span>
+      <section className="soon" aria-label="How it works">
+        <span className="mono muted">How it works</span>
         <div className="soon__grid">
-          {SOON.map((x, i) => (
+          {STEPS.map((x, i) => (
             <motion.div
               key={x.title}
               className="soon__card"
@@ -174,12 +187,15 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 + i * 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <span className="soon__dot" data-tone={['cyan', 'mint', 'lav'][i]} />
+              <span className="soon__dot" data-tone={['cyan', 'mint', 'lav'][i]}>
+                {i + 1}
+              </span>
               <b>{x.title}</b>
               <p>{x.body}</p>
             </motion.div>
           ))}
         </div>
+        <p className="soon__later muted">Coming soon: quests generated around your goal, and picture walkthroughs for your exact tool.</p>
       </section>
     </main>
   )

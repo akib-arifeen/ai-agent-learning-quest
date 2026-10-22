@@ -4,6 +4,7 @@
  * of sync with what the learner actually did. Runs in the browser (and in the coach route).
  */
 
+import type { Profile } from './profile'
 import { QUESTS, LEVELS, questById, variantOf, type Quest } from './quest'
 
 export type SittingRec = { n: number; at: string; next?: string }
@@ -38,6 +39,8 @@ export type QuestState = {
   coachMessages: number
   /** What they uploaded for each quest — their record of what they made. */
   files: QuestFile[]
+  /** Their onboarding answers (tool, role, goal…); null until they answer anything. */
+  profile: Profile | null
 }
 
 /** "Sam" from "Sam Lee" — the first name the app calls the learner. */

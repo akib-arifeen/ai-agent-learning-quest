@@ -20,7 +20,7 @@ function leftToday(now: Date) {
  * countdown to midnight. Turns green when done, coral-edged when she's behind.
  */
 export default function Today() {
-  const { sum, state, today, now } = useQuest()
+  const { sum, state, today, now, setup } = useQuest()
   const { pace } = sum
   const slot = pace.current
 
@@ -91,7 +91,7 @@ export default function Today() {
         {doneToday && <small style={{ fontWeight: 700 }}>Next up · {fmtDay(slot.date)}</small>}
         {slot.items.map((i) => {
           const q = questById(i.questId)!
-          const v = variantOf(q, state.progress[q.id]?.variant)
+          const v = variantOf(q, state.progress[q.id]?.variant, setup)
           const total = v.sittings.length
           return (
             <Link key={`${i.questId}-${i.n}`} href={`/quest/${q.id}`} className="today__item">

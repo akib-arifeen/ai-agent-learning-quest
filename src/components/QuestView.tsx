@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Compass,
   Crown,
   FlaskConical,
   GraduationCap,
@@ -26,14 +27,15 @@ import { LEVELS, QUESTS, type Quest, type Variant, variantOf } from '@/lib/quest
 import { confetti } from './Celebrate'
 import Creations from './Creations'
 import Modal from './Modal'
+import Rich from './Rich'
 import { useQuest } from './QuestProvider'
 import Spark from './Spark'
 
 /** A full quest: the brief on the left, her checklist + notes on the right. */
 export default function QuestView({ quest: q }: { quest: Quest }) {
-  const { state, sum, act, openCoach } = useQuest()
+  const { state, sum, act, openCoach, setup } = useQuest()
   const p = progressOf(state, q.id)
-  const v = variantOf(q, p.variant)
+  const v = variantOf(q, p.variant, setup)
   const lv = LEVELS[q.level]
   const status = questStatus(state, q)
   const due = deadlineOf(sum.slots, q.id)
@@ -100,7 +102,7 @@ export default function QuestView({ quest: q }: { quest: Quest }) {
 
       <div className="qgrid">
         <div className="qgrid__main">
-          <Brief v={v} />
+          <Brief v={v} questId={q.id} />
           {status !== 'locked' && <Creations taskId={q.id} />}
           <Notes taskId={q.id} initial={p.notes} />
         </div>
@@ -126,7 +128,9 @@ export default function QuestView({ quest: q }: { quest: Quest }) {
  * The mission text. Only "what to make" and "done when" are open; tips and the concept
  * card fold away so the page isn't a wall of text — she opens them when she needs them.
  */
-function Brief({ v }: { v: Variant }) {
+function Brief({ v, questId }: { v: Variant; questId: string }) {
+  const { state, openCoach } = useQuest()
+  const goal = state.profile?.goal?.trim()
   return (
     <>
       <section className="card">
@@ -138,16 +142,26 @@ function Brief({ v }: { v: Variant }) {
         </h2>
         <ul className="make">
           {v.make.map((m) => (
-            <li key={m}>{m}</li>
+            <li key={m}>
+              <Rich text={m} />
+            </li>
           ))}
         </ul>
       </section>
 
       <section className="done-when">
         <span className="mono">Done when</span>
-        <p>{v.expected}</p>
+        <p>
+          <Rich text={v.expected} />
+        </p>
         {v.stretch && <small>Stretch goal: {v.stretch}</small>}
       </section>
+
+      {goal && (
+        <button className="linkbtn" onClick={() => openCoach(questId, `How can this quest help me build: ${goal}?`)}>
+          <Compass size={16} /> How does this help me build “{goal.length > 60 ? `${goal.slice(0, 60)}…` : goal}”?
+        </button>
+      )}
 
       <details className="fold card">
         <summary>
@@ -164,7 +178,9 @@ function Brief({ v }: { v: Variant }) {
           {v.tips.map((t) => (
             <li key={t}>
               <Check size={16} strokeWidth={3} />
-              <span>{t}</span>
+              <span>
+                <Rich text={t} />
+              </span>
             </li>
           ))}
         </ul>
@@ -472,6 +488,7 @@ function SwapSheet({
   hasProgress: boolean
   onSwap: (id: string) => Promise<unknown>
 }) {
+  const { setup } = useQuest()
   const [confirm, setConfirm] = useState<string | null>(null)
   useEffect(() => {
     if (!open) setConfirm(null)
@@ -483,9 +500,11 @@ function SwapSheet({
     onClose()
   }
   return (
-    <Modal open={open} onClose={onClose} title="Pick your version" sub={`All three teach “${q.variants[0].concept.name}” and take about the same time.`}>
+    <Modal open={open} onClose={onClose} title="Pick your version" sub={`All three teach “${variantOf(q, q.variants[0].id, setup).concept.name}” and take about the same time.`}>
       <div className="stack">
-        {q.variants.map((alt) => (
+        {q.variants.map((raw) => {
+          const alt = variantOf(q, raw.id, setup)
+          return (
           <button key={alt.id} className={`variant ${alt.id === current ? 'is-current' : ''}`} onClick={() => choose(alt.id)}>
             <span className="row" style={{ gap: 8 }}>
               <span className="mono muted">{alt.id === 'main' ? 'Original' : alt.id === 'alt-a' ? 'Remix A' : 'Remix B'}</span>
@@ -506,7 +525,8 @@ function SwapSheet({
               </span>
             )}
           </button>
-        ))}
+          )
+        })}
       </div>
     </Modal>
   )

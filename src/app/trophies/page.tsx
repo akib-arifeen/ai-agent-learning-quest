@@ -11,8 +11,8 @@ import { QUESTS, variantOf } from '@/lib/quest'
 
 /** Trophies: their rank, every badge, and everything they've made — quest by quest. */
 export default function TrophiesPage() {
-  const { state } = useQuest()
-  const made = QUESTS.map((q) => ({ q, v: variantOf(q, state.progress[q.id]?.variant), files: state.files.filter((f) => f.task_id === q.id) })).filter((x) => x.files.length)
+  const { state, setup } = useQuest()
+  const made = QUESTS.map((q) => ({ q, v: variantOf(q, state.progress[q.id]?.variant, setup), files: state.files.filter((f) => f.task_id === q.id) })).filter((x) => x.files.length)
 
   return (
     <div>

@@ -43,7 +43,7 @@ function layout() {
  * the inked line shows how far she's travelled.
  */
 export default function QuestMap() {
-  const { state, sum } = useQuest()
+  const { state, sum, setup } = useQuest()
   const reduce = useReducedMotion()
   const [width, setWidth] = useState(560)
   const [el, setEl] = useState<HTMLDivElement | null>(null)
@@ -115,7 +115,7 @@ export default function QuestMap() {
         const q = QUESTS[r.questIndex]
         const lv = LEVELS[q.level]
         const p = state.progress[q.id]
-        const v = variantOf(q, p?.variant)
+        const v = variantOf(q, p?.variant, setup)
         const status = questStatus(state, q)
         const due = deadlineOf(sum.slots, q.id)
         const meta =

@@ -1,4 +1,8 @@
 /** Plain-English privacy note — public (no sign-in), and the link Google's consent screen asks for. */
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Privacy' }
+
 export default function PrivacyPage() {
   return (
     <main className="page" style={{ maxWidth: 720 }}>
@@ -8,15 +12,16 @@ export default function PrivacyPage() {
         <p>This is a small learning site for a 10-quest course on building with AI agents. Here’s exactly what it keeps and why.</p>
         <p>
           <b>What we store:</b> your name, email and profile picture (from Google, or what you typed), your quest progress, notes, the files you
-          upload, check-ins, and your chats with Spark, the AI coach.
+          upload, check-ins, your chats with Spark, the AI coach, and the answers you give when you set up your quest (what you do, how
+          much you’ve coded, what you want to build, your AI tool, your computer and your time each week).
         </p>
         <p>
           <b>Why:</b> to save your progress, show your streaks and badges, and let your mentor see how you’re doing so they can help. Your
-          mentor can see your progress, uploads and chats with Spark.
+          mentor can see your progress, uploads, setup answers and chats with Spark.
         </p>
         <p>
-          <b>Who else sees it:</b> no one else. We don’t sell or share your data, and there are no ads or trackers. Your messages to Spark are
-          sent to an AI model to write its replies.
+          <b>Who else sees it:</b> no one else. We don’t sell or share your data, and there are no ads or trackers. Your messages to Spark, and your
+          setup answers, are sent to an AI model so it can write replies that fit you.
         </p>
         <p>
           <b>Sign-in:</b> if you use Google, we only receive your name, email and picture. Passwords are stored as one-way hashes, never as

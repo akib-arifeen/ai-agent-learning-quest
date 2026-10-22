@@ -6,7 +6,12 @@
  * teach the SAME concept at the SAME difficulty, so swapping never skips a lesson.
  * All variants of a quest share the same number of sittings, so the schedule never moves
  * when the learner swaps.
+ *
+ * Text never names one AI tool. It uses slots ({tool}, {plan}, {mention}, {undo}…) that
+ * `variantOf` fills with the learner's own tool's words; see tools.ts for the list.
  */
+
+import { DEFAULT_SETUP, forTool, type Setup } from './tools'
 
 export type Sitting = { title: string; steps: string[] }
 
@@ -50,8 +55,9 @@ export const LEVELS: Level[] = [
 // Shared tip text, reused across variants so the facts stay identical everywhere.
 const COPY_PATH =
   'Copy a path: Windows → Shift + right-click → Copy as path. Mac → right-click, hold Option → Copy "…" as Pathname. In VS Code → right-click → Copy Path.'
-const REVEAL = 'To open your page: right-click index.html in VS Code → Reveal in File Explorer (Windows) / Reveal in Finder (Mac), then double-click it.'
-const SNAPSHOT = 'Break it on purpose, then roll back with a snapshot (they are on by default). Ctrl/Cmd+Z also works on open files.'
+const REVEAL =
+  'To open your page: find index.html in File Explorer (Windows) or Finder (Mac) and double-click it. In VS Code: right-click it → Reveal in File Explorer / Reveal in Finder.'
+const SNAPSHOT = 'Break it on purpose, then roll back. {undo}'
 const BLENDER_PATHS =
   'Blender lives here — Windows: "C:\\Program Files\\Blender Foundation\\Blender x.y\\blender.exe". Mac: "/Applications/Blender.app/Contents/MacOS/Blender". Give the agent yours.'
 
@@ -67,13 +73,13 @@ const C_SMALL = {
 }
 const C_CONTEXT = {
   name: 'Context',
-  body: 'The agent only knows three things: the folder that is open, the files you @-mention, and this chat. Everything else, it guesses.',
-  experiment: 'Ask “what files can you see?” before you @ your image, then again after. Notice the difference.',
+  body: 'The agent only knows three things: the folder that is open, the files you {mention}, and this chat. Everything else, it guesses.',
+  experiment: 'Ask “what files can you see?” before you add your image to the chat, then again after. Notice the difference.',
 }
 const C_PLAN = {
   name: 'Plan first · feedback = what you saw',
-  body: 'On bigger jobs, let the plan agent ask you questions before anything gets built. When something is off, describe exactly what you saw or heard — like notes to an editor.',
-  experiment: 'Switch to the plan agent (Ctrl+. / Cmd+.) and ask it to list its questions for you before it plans.',
+  body: 'On bigger jobs, let {plan} ask you questions before anything gets built. When something is off, describe exactly what you saw or heard — like notes to an editor.',
+  experiment: '{planHow}, and ask it to list its questions for you before it plans.',
 }
 const C_CONSTRAINTS = {
   name: 'Constraints up front · content vs code',
@@ -103,15 +109,14 @@ const C_SCALE = {
 const C_CAPSTONE = {
   name: 'Break work down · the context window · memory lives in files · save points',
   body: 'A long chat fills the agent’s short-term memory (the context window) and it starts forgetting. Files never forget: your design doc and progress.md are the project’s memory. Back up every working milestone.',
-  experiment: 'Start a fresh chat, @ only progress.md, and ask “where are we and what’s next?”',
+  experiment: 'Start a fresh chat, {mention} only progress.md, and ask “where are we and what’s next?”',
 }
 
-const RULES_TIP =
-  'Project rules live in .kilo/rules/*.md, listed in kilo.jsonc under "instructions" (the older .kilocode/rules/ still works). Docs: https://kilo.ai/docs/customize/custom-rules'
-const INTERVIEW_TIP = 'In the plan agent: “Interview me one question at a time before you plan.” Answer in your own words.'
+const RULES_TIP = '{rules}'
+const INTERVIEW_TIP = 'In {plan}: “Interview me one question at a time before you plan.” Answer in your own words.'
 const PHONE_TIP = 'Check the phone view: open DevTools (F12, or Cmd+Option+I on Mac) → toggle the device toolbar.'
 const CAPSTONE_TIPS = [
-  'Never use one chat across days. New chat per milestone — start it by @-mentioning your design doc and progress.md.',
+  'Never use one chat across days. New chat per milestone: start it by adding your design doc and progress.md to the chat ({mention} them).',
   'End every sitting by asking the agent to update progress.md: what works, what’s next, known bugs.',
   'Save points: after each milestone that works, zip a backup (or make a git commit).',
 ]
@@ -129,16 +134,16 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Base Camp',
         tagline: 'Set up your gear once. Every quest after this starts here.',
-        tools: ['VS Code', 'Kilo Code'],
+        tools: ['{app}', '{tool}'],
         folder: 'ai-quest',
         make: [
-          'Install VS Code, then the Kilo Code extension, and choose the free model “Auto Free”.',
-          'Make an ai-quest folder, open it in VS Code, and give each task its own subfolder.',
+          '{install}',
+          'Make an ai-quest folder, {open}, and give each task its own subfolder.',
         ],
-        expected: 'Kilo Code is open in VS Code with Auto Free selected, inside your ai-quest folder.',
+        expected: '{ready}',
         tips: [
-          'Kilo calls its modes “agents”: code (default), ask (read-only), plan (writes plans only), debug. Switch with the dropdown or Ctrl+. (Windows) / Cmd+. (Mac). Skip “orchestrator” — it is deprecated.',
-          'Auto Free sends your requests to whichever free models are available. They can be slow or rate-limited — that is normal, not you.',
+          '{tip1}',
+          '{tip2}',
           'Golden rule: never point the agent at the only copy of a project or art file. Copy it into ai-quest first.',
           'Brief recipe — a checklist, not a template: Goal · Context · Constraints · Done when.',
         ],
@@ -151,10 +156,10 @@ export const QUESTS: Quest[] = [
           {
             title: 'Gear up',
             steps: [
-              'Install VS Code',
-              'Install the Kilo Code extension',
-              'Sign in and pick “Auto Free”',
-              'Make the ai-quest folder and open it in VS Code',
+              '{setup1}',
+              '{setup2}',
+              '{setup3}',
+              '{setup4}',
               'Read the Golden Rule',
               'Read the Brief recipe',
             ],
@@ -176,7 +181,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Your Name in Stardust',
         tagline: 'Type a word. Watch it form out of thousands of glowing particles.',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '01-stardust',
         make: [
           'A dark web page with a text box.',
@@ -186,7 +191,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '01-stardust/index.html opens on double-click and does all of the above.',
         tips: [
-          '@-mention the 01-stardust folder so the agent builds in the right place.',
+          '{Mention} the 01-stardust folder so the agent builds in the right place.',
           'Describe the feeling like a motion-design brief: speed, glow, colour, how floaty the drift is.',
           'Watch the plan → act → check loop. Read the plan before you approve it.',
           REVEAL,
@@ -211,7 +216,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Neon Sign Shop',
         tagline: 'Your word, bent into a buzzing neon tube on a brick wall.',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '01-neon',
         make: [
           'A dark brick-wall page with a text box.',
@@ -222,7 +227,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '01-neon/index.html opens on double-click and does all of the above.',
         tips: [
-          '@-mention the 01-neon folder so the agent builds in the right place.',
+          '{Mention} the 01-neon folder so the agent builds in the right place.',
           'Brief it like a set dresser: “a cheap noodle-bar sign at 2am”, not just “neon”.',
           'Ask for the hum to be made with the Web Audio API so you need no sound files.',
           REVEAL,
@@ -247,7 +252,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Kinetic Type Machine',
         tagline: 'An After Effects-style poster that animates every phrase you type.',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '01-kinetic-type',
         make: [
           'A page with a text box and a big poster area.',
@@ -258,7 +263,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '01-kinetic-type/index.html opens on double-click; three styles work and Save PNG downloads the poster.',
         tips: [
-          '@-mention the 01-kinetic-type folder so the agent builds in the right place.',
+          '{Mention} the 01-kinetic-type folder so the agent builds in the right place.',
           'Use the motion words you already know from After Effects — ease, stagger, overshoot. Agents understand them.',
           'Ask: “What can’t a plain web page do that After Effects can?” Good to know early.',
           REVEAL,
@@ -293,7 +298,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Desk Pet',
         tagline: 'A tiny creature you design, built one behaviour at a time.',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '02-desk-pet',
         make: [
           'A creature you design, built one behaviour per message:',
@@ -305,7 +310,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '02-desk-pet/index.html does all five.',
         tips: [
-          '@ the file every message, so the agent keeps editing the same pet.',
+          '{Mention} the file in every message, so the agent keeps editing the same pet.',
           'Test each round before asking for the next behaviour.',
           SNAPSHOT,
           'Ask the agent how to speed up time for testing, so you don’t wait 60 seconds every time.',
@@ -331,7 +336,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Pocket Aquarium',
         tagline: 'A fish you design, living in a glass tank in your browser.',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '02-aquarium',
         make: [
           'A fish you design, built one behaviour per message:',
@@ -343,7 +348,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '02-aquarium/index.html does all five.',
         tips: [
-          '@ the file every message, so the agent keeps editing the same fish.',
+          '{Mention} the file in every message, so the agent keeps editing the same fish.',
           'Describe the water: murky pond or bright tropical? That one word changes every colour.',
           SNAPSHOT,
           'Ask the agent how to speed up time for testing.',
@@ -369,7 +374,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Mood Plant',
         tagline: 'A little pixel plant that needs you (just a bit).',
-        tools: ['Kilo Code', 'Browser'],
+        tools: ['{tool}', 'Browser'],
         folder: '02-mood-plant',
         make: [
           'A pixel-art plant you design, built one behaviour per message:',
@@ -381,7 +386,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '02-mood-plant/index.html does all five.',
         tips: [
-          '@ the file every message, so the agent keeps editing the same plant.',
+          '{Mention} the file in every message, so the agent keeps editing the same plant.',
           'For crisp pixel art, give the canvas size (e.g. 64×64, scaled up) and say “no smoothing”.',
           SNAPSHOT,
           'Ask the agent how to speed up time for testing.',
@@ -418,7 +423,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Living Poster',
         tagline: 'Your own drawing or render, melting and glitching under the mouse.',
-        tools: ['Kilo Code', 'Browser', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your art'],
         folder: '03-living-poster',
         make: [
           'An interactive page built from your own drawing or render.',
@@ -428,7 +433,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '03-living-poster/index.html shows your image with all three effects working.',
         tips: [
-          'Copy the image into 03-living-poster first (Golden rule), then @ it — or paste its full path.',
+          'Copy the image into 03-living-poster first (Golden rule), then {mention} it, or paste its full path.',
           COPY_PATH,
           'If the effects fail on double-click, say exactly that. Browsers block some image tricks on local files, and the agent can work around it.',
           'Try 3 different images. Which one looks best melted?',
@@ -440,7 +445,7 @@ export const QUESTS: Quest[] = [
             title: 'Make it melt',
             steps: [
               'Copied your image into the folder',
-              '“What files can you see?” before & after the @',
+              '“What files can you see?” before & after adding it',
               'Your image on the page',
               'Hover melt / glitch that settles back',
               'ASCII toggle',
@@ -454,7 +459,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Before / After Reveal',
         tagline: 'Show off your process: the sketch on one side, the final on the other.',
-        tools: ['Kilo Code', 'Browser', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your art'],
         folder: '03-before-after',
         make: [
           'Two of your own images: a sketch, WIP or clay render, and the finished piece.',
@@ -465,7 +470,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '03-before-after/index.html shows both images with all four features working.',
         tips: [
-          'Copy both images into 03-before-after first (Golden rule), then @ them — or paste their full paths.',
+          'Copy both images into 03-before-after first (Golden rule), then {mention} them, or paste their full paths.',
           COPY_PATH,
           'Images different sizes? Say which one to fit to. That is exactly the kind of detail the agent can’t guess.',
           'If something fails on double-click, say exactly that — browsers block some image tricks on local files.',
@@ -477,7 +482,7 @@ export const QUESTS: Quest[] = [
             title: 'Reveal the process',
             steps: [
               'Copied both images into the folder',
-              '“What files can you see?” before & after the @',
+              '“What files can you see?” before & after adding them',
               'Drag slider wipe (mouse + touch)',
               'Magnifier loupe',
               'Flicker toggle',
@@ -491,7 +496,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Palette Thief',
         tagline: 'Steal the colours out of your own art.',
-        tools: ['Kilo Code', 'Browser', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your art'],
         folder: '03-palette-thief',
         make: [
           'Load one of your artworks into a page.',
@@ -502,7 +507,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: '03-palette-thief/index.html extracts 6 colours from your image, and the export downloads a card.',
         tips: [
-          'Copy the image into 03-palette-thief first (Golden rule), then @ it — or paste its full path.',
+          'Copy the image into 03-palette-thief first (Golden rule), then {mention} it, or paste its full path.',
           COPY_PATH,
           'Try 3 images. If the palette looks wrong, describe what’s missing: “the red jacket isn’t in the palette”.',
           'If it fails on double-click, say exactly that — browsers block some image tricks on local files.',
@@ -514,7 +519,7 @@ export const QUESTS: Quest[] = [
             title: 'Steal the colours',
             steps: [
               'Copied your image into the folder',
-              '“What files can you see?” before & after the @',
+              '“What files can you see?” before & after adding it',
               '6 swatches with hex codes',
               'Click to copy',
               'Duotone toggle',
@@ -537,7 +542,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Beat Cut',
         tagline: 'Your images, cutting on the beat of a song.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Music'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Music'],
         folder: '04-beat-cut',
         make: [
           '15–20 of your images plus one song (your own, or from Pixabay Music).',
@@ -546,7 +551,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: 'A 30-second screen recording of it running (Win+Alt+R on Windows / Cmd+Shift+5 on Mac).',
         tips: [
-          'Start in the plan agent and ask how it will “hear” the beat — before any code.',
+          'Start in {plan} and ask how it will “hear” the beat — before any code.',
           'Give precise feedback: “cuts land half a beat late” beats “it’s off”.',
           'Ask for a sensitivity slider so you can tune it yourself.',
         ],
@@ -557,7 +562,7 @@ export const QUESTS: Quest[] = [
             title: 'Plan + first cut',
             steps: [
               '15–20 images + a song in 04-beat-cut',
-              'Plan agent: how will it hear the beat?',
+              'Planned first: how will it hear the beat?',
               'First version cuts on the beat',
             ],
           },
@@ -571,7 +576,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Bass Bloom Visualizer',
         tagline: 'Your artwork, breathing with the music.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Music'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Music'],
         folder: '04-visualizer',
         make: [
           'One of your artworks plus one song (your own, or from Pixabay Music).',
@@ -582,7 +587,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: 'A 30-second screen recording of it running (Win+Alt+R on Windows / Cmd+Shift+5 on Mac).',
         tips: [
-          'Start in the plan agent and ask how it will split the bass from the highs — before any code.',
+          'Start in {plan} and ask how it will split the bass from the highs — before any code.',
           'Feedback like a director: “the pulse is too twitchy, it should feel like breathing”.',
           'Ask for sliders for intensity and smoothing so you can tune it yourself.',
         ],
@@ -591,7 +596,7 @@ export const QUESTS: Quest[] = [
         sittings: [
           {
             title: 'Plan + first pulse',
-            steps: ['Artwork + song in 04-visualizer', 'Plan agent: how will it split bass and highs?', 'Art pulses on the bass'],
+            steps: ['Artwork + song in 04-visualizer', 'Planned first: how will it split bass and highs?', 'Art pulses on the bass'],
           },
           {
             title: 'Modes + record',
@@ -603,7 +608,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Lyric Video Machine',
         tagline: 'Kinetic lyrics that land on every line.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Music'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Music'],
         folder: '04-lyric-video',
         make: [
           'One song plus its lyrics in lyrics.txt (yours to write or type up), and 5+ of your images.',
@@ -613,7 +618,7 @@ export const QUESTS: Quest[] = [
         ],
         expected: 'A 30-second screen recording of your lyric video (Win+Alt+R on Windows / Cmd+Shift+5 on Mac).',
         tips: [
-          'Start in the plan agent and ask how it will store the timings — before any code.',
+          'Start in {plan} and ask how it will store the timings — before any code.',
           'Precise feedback: “line 4 appears half a beat late”.',
           'Ask for a “nudge all timings” control so you can fix sync without re-tapping.',
         ],
@@ -622,7 +627,7 @@ export const QUESTS: Quest[] = [
         sittings: [
           {
             title: 'Plan + tap mode',
-            steps: ['Song, lyrics.txt + images in 04-lyric-video', 'Plan agent: how will it store timings?', 'Tap mode records timestamps'],
+            steps: ['Song, lyrics.txt + images in 04-lyric-video', 'Planned first: how will it store timings?', 'Tap mode records timestamps'],
           },
           {
             title: 'Animate + record',
@@ -644,7 +649,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Choose-Your-Own-Adventure',
         tagline: 'Your story, your pictures, your music — and every choice matters.',
-        tools: ['Kilo Code', 'Browser', 'Your writing', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your writing', 'Your art'],
         folder: '05-adventure',
         make: [
           'You write story.txt: about 8 scenes, 2 choices each, 2+ endings.',
@@ -679,7 +684,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Creature Personality Quiz',
         tagline: 'Which of your creatures are you? Find out.',
-        tools: ['Kilo Code', 'Browser', 'Your writing', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your writing', 'Your art'],
         folder: '05-quiz',
         make: [
           'You write quiz.txt: 8 questions, 3–4 answers each, 4 results.',
@@ -710,7 +715,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Mini Visual Novel',
         tagline: 'Your characters, your dialogue, your endings.',
-        tools: ['Kilo Code', 'Browser', 'Your writing', 'Your art'],
+        tools: ['{tool}', 'Browser', 'Your writing', 'Your art'],
         folder: '05-visual-novel',
         make: [
           'You write script.txt: about 8 scenes of dialogue, a choice in most, 2+ endings.',
@@ -752,7 +757,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Staircase to Nowhere',
         tagline: 'A Blender script that builds a sunset spiral staircase for you.',
-        tools: ['Kilo Code', 'Blender', 'Python'],
+        tools: ['{tool}', 'Blender', 'Python'],
         folder: '06-stairs',
         make: [
           'stairs.py builds a 40-step spiral staircase with a sunset gradient.',
@@ -782,7 +787,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Crystal Garden',
         tagline: 'Grow a glowing crystal cluster in Houdini — with code.',
-        tools: ['Kilo Code', 'Houdini', 'Python'],
+        tools: ['{tool}', 'Houdini', 'Python'],
         folder: '06-crystals',
         make: [
           'crystals.py, a Houdini Python script (Houdini Apprentice is free for learning) that builds a rock with 60 crystals growing out of it.',
@@ -814,7 +819,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Title Sequence Robot',
         tagline: 'A script that builds an animated After Effects title comp for you.',
-        tools: ['Kilo Code', 'After Effects', 'ExtendScript'],
+        tools: ['{tool}', 'After Effects', 'ExtendScript'],
         folder: '06-title-robot',
         make: [
           'title_maker.jsx, an After Effects script that builds a 1080p, 6-second comp.',
@@ -856,7 +861,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Haunted Forest',
         tagline: 'A foggy Unreal forest, dressed by script, with orbs you build yourself.',
-        tools: ['Kilo Code', 'Unreal Engine', 'Python', 'Blueprints'],
+        tools: ['{tool}', 'Unreal Engine', 'Python', 'Blueprints'],
         folder: '07-haunted-forest',
         make: [
           'Part A · dress_forest.py (editor Python) scatters 200 trees and rocks with a winding clear path, fog and 6 coloured lights. Settings at the top; no duplicates on re-run.',
@@ -892,7 +897,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Firefly Meadow',
         tagline: 'Learn Godot 4 by building a glowing night meadow.',
-        tools: ['Kilo Code', 'Godot 4', 'GDScript'],
+        tools: ['{tool}', 'Godot 4', 'GDScript'],
         folder: '07-firefly-meadow',
         make: [
           'Part A · a GDScript that builds a 3D meadow: 200 trees and rocks around a winding clear path, fog and 6 coloured lights. Settings at the top; no duplicates on re-run.',
@@ -903,7 +908,7 @@ export const QUESTS: Quest[] = [
         tips: [
           'Godot is free and open source. Get Godot 4 (the standard build, not .NET).',
           'Tell the agent your exact Godot version — Godot 3 and 4 code differ a lot, and agents mix them up.',
-          'Scenes (.tscn) and scripts (.gd) are text files, so the agent can read them — @ them.',
+          'Scenes (.tscn) and scripts (.gd) are text files, so the agent can read them: {mention} them.',
           'Ask for options: build the meadow when the game starts, or as an editor script? Pick one.',
           'Errors show in the Output and Debugger panels at the bottom — paste them exactly.',
         ],
@@ -928,7 +933,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Coin Forest Obby',
         tagline: 'Your first Roblox world — with a script doing the heavy lifting.',
-        tools: ['Kilo Code', 'Roblox Studio', 'Luau'],
+        tools: ['{tool}', 'Roblox Studio', 'Luau'],
         folder: '07-coin-forest',
         make: [
           'Part A · a Luau script that builds a forest of 200 trees and rocks around a winding path, with fog and 6 coloured lights. Settings at the top; no duplicates on re-run.',
@@ -974,13 +979,13 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Portfolio Site',
         tagline: 'Your work, your words, your site — and you’re the creative director.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Your writing'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Your writing'],
         folder: '08-portfolio',
         make: [
           'A raw/ folder of your work.',
           'about-me.txt and projects.txt, written by YOU.',
           'A project rule: “I’m not a coder, explain simply”, “never touch raw/”, “images under 500 KB”.',
-          'The plan agent interviews you one question at a time, then the code agent builds.',
+          '{Plan} interviews you one question at a time, then the agent builds.',
         ],
         expected: 'A responsive site (check it in the DevTools phone view) — and raw/ is untouched.',
         stretch: 'Put it online with Netlify Drop.',
@@ -989,7 +994,7 @@ export const QUESTS: Quest[] = [
         learning: 'Standing instructions, being interviewed by the AI, and directing taste.',
         sittings: [
           { title: 'Gather + rules', steps: ['raw/ folder of your work', 'about-me.txt written by you', 'projects.txt written by you', 'Project rule file'] },
-          { title: 'Interview + plan', steps: ['Plan agent interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
+          { title: 'Interview + plan', steps: ['{Plan} interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
           { title: 'Build', steps: ['First build', 'Images under 500 KB', 'raw/ untouched'] },
           { title: 'Polish', steps: ['Phone view checked', 'Your 3 creative-director notes applied', 'Stretch: online with Netlify Drop'] },
         ],
@@ -998,13 +1003,13 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Process Zine',
         tagline: 'A scroll-through zine of one project, from first sketch to final.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Your writing'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Your writing'],
         folder: '08-zine',
         make: [
           'Pick one project. A raw/ folder holds its sketches, WIPs and finals.',
           'zine.txt: the story of making it, page by page (8–12 pages), written by YOU.',
           'A project rule: “I’m not a coder, explain simply”, “never touch raw/”, “images under 500 KB”.',
-          'The plan agent interviews you one question at a time, then the code agent builds a scroll zine where each page snaps in with a transition.',
+          '{Plan} interviews you one question at a time, then the agent builds a scroll zine where each page snaps in with a transition.',
         ],
         expected: 'A responsive zine (check it in the DevTools phone view) — and raw/ is untouched.',
         stretch: 'Put it online with Netlify Drop.',
@@ -1013,7 +1018,7 @@ export const QUESTS: Quest[] = [
         learning: 'Standing instructions, being interviewed by the AI, and directing taste.',
         sittings: [
           { title: 'Gather + rules', steps: ['raw/ folder for one project', 'zine.txt written by you', 'Picked your 8–12 pages', 'Project rule file'] },
-          { title: 'Interview + plan', steps: ['Plan agent interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
+          { title: 'Interview + plan', steps: ['{Plan} interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
           { title: 'Build', steps: ['Pages snap in with transitions', 'Images under 500 KB', 'raw/ untouched'] },
           { title: 'Polish', steps: ['Phone view checked', 'Your 3 creative-director notes applied', 'Stretch: online with Netlify Drop'] },
         ],
@@ -1022,13 +1027,13 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Commission Shop Page',
         tagline: 'A one-page shop for your art commissions. Get paid for what you love.',
-        tools: ['Kilo Code', 'Browser', 'Your art', 'Your writing'],
+        tools: ['{tool}', 'Browser', 'Your art', 'Your writing'],
         folder: '08-commissions',
         make: [
           'A raw/ folder of your best 9–12 pieces.',
           'about-me.txt and prices.txt (3 tiers, what’s included, turnaround), written by YOU.',
           'A project rule: “I’m not a coder, explain simply”, “never touch raw/”, “images under 500 KB”.',
-          'The plan agent interviews you one question at a time, then the code agent builds: gallery with lightbox, price tiers, how it works, FAQ, a request form.',
+          '{Plan} interviews you one question at a time, then the agent builds: gallery with lightbox, price tiers, how it works, FAQ, a request form.',
         ],
         expected: 'A responsive shop page (check it in the DevTools phone view) — and raw/ is untouched.',
         stretch: 'Put it online with Netlify Drop, and ask the agent how to make the form actually reach you.',
@@ -1037,7 +1042,7 @@ export const QUESTS: Quest[] = [
         learning: 'Standing instructions, being interviewed by the AI, and directing taste.',
         sittings: [
           { title: 'Gather + rules', steps: ['raw/ folder of 9–12 pieces', 'about-me.txt written by you', 'prices.txt written by you', 'Project rule file'] },
-          { title: 'Interview + plan', steps: ['Plan agent interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
+          { title: 'Interview + plan', steps: ['{Plan} interviewed you', 'Asked “what rules are you following?”', 'Approved the plan'] },
           { title: 'Build', steps: ['Gallery, tiers, FAQ, form', 'Images under 500 KB', 'raw/ untouched'] },
           { title: 'Polish', steps: ['Phone view checked', 'Your 3 creative-director notes applied', 'Stretch: online with Netlify Drop'] },
         ],
@@ -1055,7 +1060,7 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Blender → Web 360° Turntable',
         tagline: 'Spin your 3D model in any browser, on any phone.',
-        tools: ['Kilo Code', 'Blender', 'Command line', 'Browser'],
+        tools: ['{tool}', 'Blender', 'Command line', 'Browser'],
         folder: '09-turntable',
         make: [
           '1 · Headless Blender (command line) renders 36 frames, 10° apart, with a transparent background.',
@@ -1079,7 +1084,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Sprite Sheet Factory',
         tagline: 'Turn a Blender animation into a game-ready sprite sheet.',
-        tools: ['Kilo Code', 'Blender', 'Command line', 'Browser'],
+        tools: ['{tool}', 'Blender', 'Command line', 'Browser'],
         folder: '09-sprite-factory',
         make: [
           '1 · Headless Blender renders a short animation of your character or object (e.g. a 12-frame idle bounce) with a transparent background.',
@@ -1103,7 +1108,7 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Lookdev Contact Sheet',
         tagline: 'One model, twelve moods — rendered while you make tea.',
-        tools: ['Kilo Code', 'Blender', 'Command line', 'Browser'],
+        tools: ['{tool}', 'Blender', 'Command line', 'Browser'],
         folder: '09-lookdev',
         make: [
           '1 · Headless Blender renders one of your models with 4 lighting or material presets × 3 camera angles = 12 renders.',
@@ -1137,13 +1142,13 @@ export const QUESTS: Quest[] = [
         id: 'main',
         title: 'Capstone: Browser Game on itch.io',
         tagline: 'The final boss. A real game, with your art, that anyone can play.',
-        tools: ['Kilo Code', 'Browser', 'Blender', 'itch.io'],
+        tools: ['{tool}', 'Browser', 'Blender', 'itch.io'],
         folder: '10-game',
         make: [
           '2–5 minutes of play, with your own art.',
           'A title screen, 3 levels, a score plus a saved high score.',
           'Sound and music, and an end screen.',
-          'Process: you write game-design.md → plan turns it into milestones and recommends plain code vs Phaser (you decide) → one milestone per new chat, updating progress.md each time → backups or git → Blender sprites with your Task 9 technique → a friend playtests → publish.',
+          'Process: you write game-design.md → {plan} turns it into milestones and recommends plain code vs Phaser (you decide) → one milestone per new chat, updating progress.md each time → backups or git → Blender sprites with your Task 9 technique → a friend playtests → publish.',
         ],
         expected: 'Your game is live on itch.io (zip with index.html at the root → Kind: HTML → “played in browser”), and a friend has played it start to finish.',
         tips: CAPSTONE_TIPS,
@@ -1151,7 +1156,7 @@ export const QUESTS: Quest[] = [
         learning: 'Running a multi-day project with an agent — and shipping it.',
         sittings: [
           { title: 'Write game-design.md', steps: ['Idea, story + art style', 'The 3 levels described', 'What “fun” means for your game'] },
-          { title: 'Plan milestones', steps: ['Plan agent turned it into milestones', 'Decided: plain code or Phaser', 'progress.md created'] },
+          { title: 'Plan milestones', steps: ['{Plan} turned it into milestones', 'Decided: plain code or Phaser', 'progress.md created'] },
           { title: 'Milestone · core play', steps: ['Player moves + core mechanic works', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · 3 levels', steps: ['3 levels playable', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · score + screens', steps: ['Score + saved high score', 'Title screen + end screen', 'Save point'] },
@@ -1165,13 +1170,13 @@ export const QUESTS: Quest[] = [
         id: 'alt-a',
         title: 'Capstone: Godot Game on itch.io',
         tagline: 'The final boss, in Godot 4 — open source, and yours to keep learning.',
-        tools: ['Kilo Code', 'Godot 4', 'GDScript', 'Blender', 'itch.io'],
+        tools: ['{tool}', 'Godot 4', 'GDScript', 'Blender', 'itch.io'],
         folder: '10-godot-game',
         make: [
           '2–5 minutes of play, with your own art, made in Godot 4 with GDScript.',
           'A title screen, 3 levels, a score plus a saved high score.',
           'Sound and music, and an end screen.',
-          'Process: you write game-design.md → plan turns it into milestones → one milestone per new chat, updating progress.md each time → backups or git → Blender sprites/models with your Task 9 technique → a friend playtests → Web export → publish.',
+          'Process: you write game-design.md → {plan} turns it into milestones → one milestone per new chat, updating progress.md each time → backups or git → Blender sprites/models with your Task 9 technique → a friend playtests → Web export → publish.',
         ],
         expected: 'Your game is live on itch.io and plays in the browser, and a friend has played it start to finish.',
         tips: [
@@ -1182,7 +1187,7 @@ export const QUESTS: Quest[] = [
         learning: 'Running a multi-day project with an agent — and shipping it.',
         sittings: [
           { title: 'Write game-design.md', steps: ['Idea, story + art style', 'The 3 levels described', 'What “fun” means for your game'] },
-          { title: 'Plan milestones', steps: ['Plan agent turned it into milestones', 'Godot version noted in progress.md', 'progress.md created'] },
+          { title: 'Plan milestones', steps: ['{Plan} turned it into milestones', 'Godot version noted in progress.md', 'progress.md created'] },
           { title: 'Milestone · core play', steps: ['Player moves + core mechanic works', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · 3 levels', steps: ['3 levels playable', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · score + screens', steps: ['Score + saved high score', 'Title screen + end screen', 'Save point'] },
@@ -1196,13 +1201,13 @@ export const QUESTS: Quest[] = [
         id: 'alt-b',
         title: 'Capstone: Roblox Experience',
         tagline: 'The final boss on Roblox — the first step toward earning from your games.',
-        tools: ['Kilo Code', 'Roblox Studio', 'Luau', 'Blender'],
+        tools: ['{tool}', 'Roblox Studio', 'Luau', 'Blender'],
         folder: '10-roblox-game',
         make: [
           '2–5 minutes of play — an obby or collect-a-thon with your own art and style.',
           'A lobby/title area, 3 stages, a score or timer plus a saved best score.',
           'Sound and music, and an end celebration.',
-          'Process: you write game-design.md → plan turns it into milestones → one milestone per new chat, updating progress.md each time → every script also saved as a .luau file → Blender models with your Task 9 skills → a friend playtests → publish.',
+          'Process: you write game-design.md → {plan} turns it into milestones → one milestone per new chat, updating progress.md each time → every script also saved as a .luau file → Blender models with your Task 9 skills → a friend playtests → publish.',
         ],
         expected: 'Your experience is public on Roblox, and a friend has played it start to finish.',
         tips: [
@@ -1214,7 +1219,7 @@ export const QUESTS: Quest[] = [
         learning: 'Running a multi-day project with an agent — and shipping it.',
         sittings: [
           { title: 'Write game-design.md', steps: ['Idea, theme + art style', 'The 3 stages described', 'What “fun” means for your game'] },
-          { title: 'Plan milestones', steps: ['Plan agent turned it into milestones', 'Scripts folder for .luau copies', 'progress.md created'] },
+          { title: 'Plan milestones', steps: ['{Plan} turned it into milestones', 'Scripts folder for .luau copies', 'progress.md created'] },
           { title: 'Milestone · core play', steps: ['Movement + core mechanic works', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · 3 stages', steps: ['3 stages playable', 'progress.md updated', 'Save point'] },
           { title: 'Milestone · score + lobby', steps: ['Score/timer + saved best', 'Lobby + end celebration', 'Save point'] },
@@ -1231,14 +1236,44 @@ export const QUESTS: Quest[] = [
 /** Look up a quest by id. */
 export const questById = (id: string) => QUESTS.find((q) => q.id === id)
 
-/** The variant a quest is currently set to (falls back to main for unknown ids). */
-export const variantOf = (q: Quest, variantId?: string) => q.variants.find((v) => v.id === variantId) || q.variants[0]
+// Worded variants are cached per tool + OS, so each one is one stable object (cheap to
+// call in loops, and safe as a React dependency).
+const worded = new Map<string, Variant>()
+
+/**
+ * The variant a quest is currently set to (falls back to main for unknown ids), with its
+ * tool slots filled for the learner's setup. Leave `setup` out where only the shape
+ * matters (ids, step counts, titles): the default is the Kilo Code wording.
+ */
+export const variantOf = (q: Quest, variantId?: string, setup: Setup = DEFAULT_SETUP): Variant => {
+  const v = q.variants.find((x) => x.id === variantId) || q.variants[0]
+  const key = `${q.id}:${v.id}:${setup.tool}:${setup.os}`
+  let out = worded.get(key)
+  if (!out) {
+    const f = (s: string) => forTool(s, setup)
+    out = {
+      ...v,
+      title: f(v.title),
+      tagline: f(v.tagline),
+      tools: [...new Set(v.tools.map(f))],
+      make: v.make.map(f),
+      expected: f(v.expected),
+      stretch: v.stretch && f(v.stretch),
+      tips: v.tips.map(f),
+      concept: { name: f(v.concept.name), body: f(v.concept.body), experiment: v.concept.experiment && f(v.concept.experiment) },
+      learning: f(v.learning),
+      sittings: v.sittings.map((s) => ({ title: f(s.title), steps: s.steps.map(f) })),
+    }
+    worded.set(key, out)
+  }
+  return out
+}
 
 // ───────────────────────────────── Field guide ─────────────────────────────────
 
 export const BRIEF_RECIPE = [
   { k: 'Goal', v: 'What you want to exist at the end, in one sentence.' },
-  { k: 'Context', v: 'The files (@ them), your app + version, and what you already tried.' },
+  { k: 'Context', v: 'The files ({mention} them), your app + version, and what you already tried.' },
   { k: 'Constraints', v: 'The must-haves and must-nots: “works by double-click”, “don’t touch raw/”.' },
   { k: 'Done when', v: 'How you’ll know it worked — the quest’s expected output.' },
 ]
@@ -1246,26 +1281,17 @@ export const BRIEF_RECIPE = [
 export const FREE_TIER_HABITS = [
   'From Quest 6 on, take smaller steps.',
   'New chat for each piece of work.',
-  '@-mention only the files that matter.',
-  'Try a different free model before blaming yourself.',
+  '{Mention} only the files that matter.',
+  'Try a different model before blaming yourself.',
   'Rate-limited? Wait a bit, or switch models.',
 ]
 
 export const WHEN_STUCK = [
-  'Same error 3 times → start a new chat, or switch to the debug agent.',
+  'Same error 3 times → start a fresh chat ({newChat}) and describe it from scratch.',
   'Describe what you SEE, not what you think is wrong.',
   'Rate-limited → switch model.',
   'Ask: “Explain what you just did in 3 bullets.”',
   'Never approve a deletion you don’t understand.',
-]
-
-export const KILO_CHEATS = [
-  { k: 'Agents', v: 'code (default) · ask (read-only) · plan (writes plans only) · debug. Switch with the dropdown or Ctrl+. / Cmd+.' },
-  { k: 'Free model', v: '“Auto Free” routes to whichever free models are up. Slow or rate-limited at times — normal.' },
-  { k: 'Add context', v: 'Type @ and pick a file or folder · drag files from the VS Code explorer into the chat · paste a full path for files outside the project (it asks before reading).' },
-  { k: 'Copy a path', v: 'Windows: Shift + right-click → Copy as path · Mac: right-click, hold Option → Copy “…” as Pathname · VS Code: right-click → Copy Path.' },
-  { k: 'Undo', v: 'Snapshots (on by default) let you roll back an agent change from the Kilo chat. Separately, Ctrl/Cmd+Z undoes edits inside a file you have open.' },
-  { k: 'Project rules', v: '.kilo/rules/*.md, listed in kilo.jsonc “instructions”. The older .kilocode/rules/ still works.' },
 ]
 
 export const UPGRADE_SIGNS = [

@@ -4,8 +4,11 @@ import { MotionConfig } from 'motion/react'
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { type ProgressRow, type QuestState, localDay, summarize } from '@/lib/game'
+import { EMPTY_PROFILE, type Profile, type ProfilePatch, needsOnboarding, setupOf } from '@/lib/profile'
+import type { Setup } from '@/lib/tools'
 import { LevelUp, type LevelUpInfo, Toasts, type Toast, type ToastInput, confetti } from './Celebrate'
 import Coach from './Coach'
+import Onboarding from './Onboarding'
 import Shell from './Shell'
 import SignIn from './SignIn'
 import Spark from './Spark'
@@ -28,6 +31,10 @@ type Ctx = {
   signOut: () => void
   /** Re-fetch state from the server (after uploads, deletes…). */
   refresh: () => Promise<void>
+  /** The learner's tool + OS: pass to `variantOf` / `forTool` so quest text uses their tool's words. */
+  setup: Setup
+  /** Save onboarding answers (applied on screen at once). False if the server refused. */
+  saveProfile: (patch: ProfilePatch) => Promise<boolean>
 }
 
 const QuestCtx = createContext<Ctx | null>(null)
@@ -70,6 +77,8 @@ function SignedInApp({ children }: { children: React.ReactNode }) {
   // The account this page belongs to — sent with every write so a stale tab can't
   // write into a different account signed in elsewhere.
   const userId = useRef('')
+  // Profile saves still in flight: only the last reply may overwrite the optimistic state.
+  const profileSaves = useRef(0)
 
   const today = localDay(now)
 
@@ -226,6 +235,46 @@ function SignedInApp({ children }: { children: React.ReactNode }) {
     setSignedOut(true)
   }, [])
 
+  const saveProfile: Ctx['saveProfile'] = useCallback(
+    async (patch) => {
+      // Show the answer at once; the server's copy replaces it when it lands.
+      setState((s) => {
+        if (!s) return s
+        const { complete, dismiss, ...fields } = patch
+        const now = new Date().toISOString()
+        const next: Profile = { ...EMPTY_PROFILE, ...s.profile, ...fields }
+        if (complete) next.completed_at = now
+        if (dismiss) next.dismissed_at = now
+        return { ...s, profile: next }
+      })
+      profileSaves.current++
+      const run = async () => {
+        try {
+          const res = await send('/api/profile', patch)
+          if (!res?.ok) {
+            const b = await res?.json().catch(() => ({}))
+            error(b?.error || 'Couldn’t save that. Check your connection.')
+            await load()
+            return false
+          }
+          const saved = (await res.json()) as Profile
+          // A later save is queued: its reply carries everything, so don't flash an older copy.
+          if (profileSaves.current === 1) setState((s) => (s ? { ...s, profile: saved } : s))
+          return true
+        } finally {
+          profileSaves.current--
+        }
+      }
+      // Same queue as progress writes, so answers land in the order they were given.
+      const p = queue.current.then(run, run)
+      queue.current = p
+      return p
+    },
+    [error, load, send],
+  )
+
+  const setup = useMemo(() => setupOf(state?.profile), [state?.profile])
+
   const openCoach = useCallback((taskId = 'general', draft = '') => setCoach({ open: true, taskId, draft }), [])
   // The first coach message earns a badge; count it locally so the badge pops right away.
   const coachSent = useCallback(() => setState((s) => (s ? { ...s, coachMessages: s.coachMessages + 1 } : s)), [])
@@ -242,13 +291,20 @@ function SignedInApp({ children }: { children: React.ReactNode }) {
     )
   if (!state || !sum) return <Loading failed={failed} retry={load} />
 
-  const ctx: Ctx = { state, today, now, sum, act, setBusy, checkin, dismissCheer, openCoach, coachSent, error, signOut, refresh: load }
+  const ctx: Ctx = { state, today, now, sum, act, setBusy, checkin, dismissCheer, openCoach, coachSent, error, signOut, refresh: load, setup, saveProfile }
   return (
     <QuestCtx.Provider value={ctx}>
       {/* JS-driven springs follow the OS "reduce motion" setting, like the CSS ones do. */}
       <MotionConfig reducedMotion="user">
-        <Shell>{children}</Shell>
-        <Coach open={coach.open} taskId={coach.taskId} draft={coach.draft} onClose={() => setCoach((c) => ({ ...c, open: false }))} />
+        {/* A brand-new learner meets onboarding first; finishing or skipping it opens the app. */}
+        {needsOnboarding(state) ? (
+          <Onboarding mode="first" onDone={() => undefined} />
+        ) : (
+          <>
+            <Shell>{children}</Shell>
+            <Coach open={coach.open} taskId={coach.taskId} draft={coach.draft} onClose={() => setCoach((c) => ({ ...c, open: false }))} />
+          </>
+        )}
         <Toasts items={toasts} />
         <LevelUp level={levelUp} onClose={() => setLevelUp(null)} />
       </MotionConfig>

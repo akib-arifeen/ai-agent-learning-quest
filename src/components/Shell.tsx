@@ -2,10 +2,12 @@
 
 import { motion } from 'motion/react'
 import Link from 'next/link'
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { BookOpen, CalendarDays, Flame, LogOut, Map as MapIcon, Shield, Trophy } from 'lucide-react'
+import { BookOpen, CalendarDays, Flame, Map as MapIcon, Shield, Trophy } from 'lucide-react'
 import { firstName } from '@/lib/game'
 import { questById } from '@/lib/quest'
+import { toolOf } from '@/lib/tools'
 import { useQuest } from './QuestProvider'
 import Spark from './Spark'
 
@@ -16,24 +18,42 @@ const NAV = [
   { href: '/guide', label: 'Guide', icon: BookOpen },
 ]
 
+const TITLES: Record<string, string> = {
+  '/': 'Quest map',
+  '/schedule': 'Plan',
+  '/trophies': 'Trophies',
+  '/guide': 'Guide',
+  '/profile': 'You',
+  '/mentor': 'Mentor HQ',
+}
+
 /** App chrome: the top bar with the XP/streak HUD, phone tab bar, and the Spark button. */
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const { sum, state, openCoach, signOut } = useQuest()
+  const { sum, state, openCoach, setup } = useQuest()
   const path = usePathname() || '/'
   const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/quest') : path.startsWith(href))
+  // Distinct page titles (WCAG 2.4.2); QuestView sets its own.
+  useEffect(() => {
+    const label = TITLES[path]
+    if (label && !path.startsWith('/quest/')) document.title = `${label} · AI Quest`
+  }, [path])
   const questId = path.startsWith('/quest/') ? path.split('/')[2] : 'general'
   const toNext = sum.rank.next ? sum.rank.next - sum.xp : 0
+  const toolName = setup.tool === 'other' ? state.profile?.tool_other || 'your agent' : toolOf(setup.tool).name
   const tabs = state.mentor ? [...NAV, { href: '/mentor', label: 'Mentor', icon: Shield }] : NAV
 
   return (
     <>
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <header className="topbar">
         <div className="topbar__inner">
           <Link href="/" className="brand" aria-label="Quest map">
             <Spark size={34} bob={false} />
             <span>
               AI Quest
-              <small>{firstName(state.user.name)} × Kilo Code</small>
+              <small>{firstName(state.user.name)} × {toolName}</small>
             </span>
           </Link>
           <nav className="nav" aria-label="Main">
@@ -64,20 +84,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </span>
               </span>
             </span>
-            <button className="avatar" onClick={signOut} title={`Signed in as ${state.user.email} — tap to sign out`} aria-label="Sign out">
+            <Link href="/profile" className="avatar" title={`Signed in as ${state.user.email}`} aria-label="Your profile" aria-current={path.startsWith('/profile') ? 'page' : undefined}>
               {state.user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={state.user.image} alt="" referrerPolicy="no-referrer" />
               ) : (
                 <span>{firstName(state.user.name).slice(0, 1).toUpperCase()}</span>
               )}
-              <LogOut size={14} className="avatar__out" />
-            </button>
+            </Link>
           </div>
         </div>
       </header>
 
-      <main className="page">{children}</main>
+      <main id="main" tabIndex={-1} className="page">{children}</main>
 
       {!path.startsWith('/mentor') && (
         <motion.button

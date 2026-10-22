@@ -1,4 +1,8 @@
 /** Plain-English terms of use — public (no sign-in), and the link Google's consent screen asks for. */
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Terms of use' }
+
 export default function TermsPage() {
   return (
     <main className="page" style={{ maxWidth: 720 }}>

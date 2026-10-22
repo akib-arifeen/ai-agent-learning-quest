@@ -1,4 +1,8 @@
 /** Plain-English privacy note — public (no sign-in), and the link Google's consent screen asks for. */
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Privacy' }
+
 export default function PrivacyPage() {
   return (
     <main className="page" style={{ maxWidth: 720 }}>

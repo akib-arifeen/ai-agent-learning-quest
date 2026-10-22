@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Creative AI Agent Quest
 
-## Getting Started
+A gamified, AI-coached course for creative people learning to build with AI agents (Kilo Code, free tier): 10 quests with XP, streaks, badges and a day-by-day plan, plus Spark, an AI coach that helps you write your own prompts instead of handing you finished ones. Open to anyone; mentors get a dashboard to see where learners get stuck.
 
-First, run the development server:
+**Live:** https://creative-ai-agent-quest.vercel.app · **Mentor view:** https://creative-ai-agent-quest.vercel.app/mentor
+
+Sign-in is all in-house (no auth service, no quota): **Google** (Google's own button, verified server-side), **email + 6-digit code** (sent from a Gmail app password), or **email + password** (scrypt-hashed in our DB). One account per email address, whichever way they sign in. Sessions are our own signed cookie, valid a year and rolled forward on each visit. Each person gets their own progress, schedule (starting the day they first sign in), uploads and coach chats. Emails in `ADMIN_EMAILS` get Mentor HQ, which can also reset a learner's password.
+
+## What's inside
+
+| Feature | Where |
+|---|---|
+| Quest content: 11 quests × 3 variants (original + 2 remixes that teach the same concept) | `src/lib/quest.ts` (edit the wording here, and only here) |
+| XP, ranks, streaks, badges, schedule, pace. All derived from progress, never stored | `src/lib/game.ts` |
+| Postgres (Neon) access, every table keyed by the Google account id; the schema is created automatically on first request | `src/lib/db.ts` |
+| Sessions, password hashing, Google token check, mentor allow-list | `src/lib/session.ts` · `src/app/api/session/route.ts` |
+| Email codes (SMTP) | `src/lib/mail.ts` |
+| Uploads (Vercel Blob) | `src/app/api/files/route.ts` · `src/components/Creations.tsx` |
+| Spark, the AI coach: system prompt + streaming from Cloudflare Workers AI | `src/lib/coach.ts` |
+| API routes | `src/app/api/*` |
+| Pages: map `/`, quest `/quest/t0…t10`, plan `/schedule`, guide `/guide`, mentor `/mentor` | `src/app/*` |
+
+Schedule rule: one sitting per day from the learner's first sign-in. Marking a day busy pushes the plan back a day and protects the streak.
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev            # needs .env.development.local (below)
+npx tsc --noEmit && npx eslint src
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env.development.local` points at a separate test database, so local testing never touches real learners' data:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+DATABASE_URL=postgresql://…/quest_test?sslmode=require
+OPENAI_API_KEY=…            # Cloudflare Workers AI token
+OPENAI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<id>/ai/v1
+OPENAI_CHAT_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+AUTH_SECRET=…               # any long random string (signs session cookies)
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=…   # optional; Google Auth Platform → Clients (JS origin http://localhost:3100)
+ADMIN_EMAILS=you@example.com
+SMTP_USER=… SMTP_PASS=…     # optional; Gmail + app password for email codes (without it, dev prints codes to the console)
+BLOB_READ_WRITE_TOKEN=…     # from `vercel env pull` (Blob store creative-quest-files)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy
 
-## Learn More
+Vercel project `creative-ai-agent-quest` (functions pinned to `sin1`, next to the Neon DB in Singapore).
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+vercel deploy --prod
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Production env: `DATABASE_URL` (Neon integration), `BLOB_READ_WRITE_TOKEN` (Blob store), the three `OPENAI_*` vars, `AUTH_SECRET`, `ADMIN_EMAILS`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and optionally `SMTP_USER` / `SMTP_PASS` to switch on email codes. The Google client's Authorized JavaScript origin is `https://creative-ai-agent-quest.vercel.app`, and the app is published (Google Auth Platform → Audience) so anyone can sign in. Public pages: `/privacy`, `/terms`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Costs and limits
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Neon free plan: 0.5 GB. Check-in screenshots are shrunk to ≤1 MB JPEGs before they're stored.
+- Spark uses the Cloudflare Workers AI free allowance (10k neurons/day, roughly 60–100 coach replies/day by my estimate). Each learner can send 30 messages per 10 minutes.

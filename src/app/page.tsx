@@ -1,95 +1,90 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client'
 
+import { AnimatePresence, motion } from 'motion/react'
+import { Heart, X } from 'lucide-react'
+import QuestMap from '@/components/QuestMap'
+import { useQuest } from '@/components/QuestProvider'
+import Link from 'next/link'
+import Spark from '@/components/Spark'
+import { Stats } from '@/components/Stats'
+import { useEffect, useState } from 'react'
+import Today from '@/components/Today'
+import { firstName } from '@/lib/game'
+
+/** Time-of-day greeting. */
+const hello = (h: number) => (h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
+
+/** Spark's one-liner on the home screen — reacts to pace and streak so it never feels canned. */
+function sparkLine(sum: ReturnType<typeof useQuest>['sum']) {
+  const { pace, streak } = sum
+  if (pace.finished) return 'You did it. Every single quest.'
+  if (pace.busyToday) return 'Busy day — your plan and streak are safe. See you tomorrow!'
+  if (pace.behind > 1) return `${pace.behind} sittings to catch up — start with the smallest step.`
+  if (pace.behind === 1) return 'Just one sitting behind. Today fixes it.'
+  if (pace.todayDone) return streak > 1 ? `${streak} days in a row. You’re on fire.` : 'Done for today. Proud of you.'
+  if (streak >= 3) return `${streak}-day streak. Don’t let it go cold!`
+  if (streak > 0) return 'Keep the streak alive — one sitting today.'
+  return 'Small steps, every day. Let’s light the first star.'
+}
+
+/** Home: today's mission, stats and badges on the side, the quest map on the right. */
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const { sum, state, now, dismissCheer } = useQuest()
+  const name = firstName(state.user.name)
+  const cheer = state.cheers.find((c) => !c.seen_at)
+  // Spark waves for the first few seconds after you arrive, then settles into its mood.
+  const [hi, setHi] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setHi(false), 3500)
+    return () => clearTimeout(t)
+  }, [])
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+  return (
+    <div className="home">
+      <div className="home__side">
+        {/* Home's one Spark: waves hello, then reacts to your day and your cursor. */}
+        <div className="greet">
+          <Spark size={78} mood={hi ? 'wave' : sum.pace.todayDone ? 'hype' : sum.pace.behind ? 'wow' : 'idle'} follow playful />
+          <div style={{ minWidth: 0 }}>
+            <h1>
+              {hello(now.getHours())}, {name}
+            </h1>
+            <motion.p className="greet__say" initial={{ opacity: 0, x: -8, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} transition={{ delay: 0.5, type: 'spring', stiffness: 300, damping: 22 }}>
+              {sparkLine(sum)}
+            </motion.p>
+          </div>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <AnimatePresence>
+          {cheer && (
+            <motion.div
+              className="cheer"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <Heart size={20} style={{ color: 'var(--color-accent-3)', flex: 'none', marginTop: 2 }} />
+              <div style={{ minWidth: 0 }}>
+                <b>{cheer.from_name || 'Your mentor'} says</b>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{cheer.message}</p>
+              </div>
+              <button className="iconbtn" style={{ marginLeft: 'auto', flex: 'none' }} onClick={() => dismissCheer(cheer.id)} aria-label="Dismiss">
+                <X size={18} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <Today />
+        <Stats />
+        <Link href="/trophies" className="linkbtn" style={{ justifySelf: 'start' }}>
+          See your trophies & badges →
+        </Link>
+      </div>
+      <section aria-label="Quest map">
+        <QuestMap />
+      </section>
     </div>
-  );
+  )
 }

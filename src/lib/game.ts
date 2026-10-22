@@ -4,6 +4,7 @@
  * of sync with what the learner actually did. Runs in the browser (and in the coach route).
  */
 
+import { PRO_TASKS, type ProStatus } from './pro'
 import type { Profile } from './profile'
 import { QUESTS, LEVELS, questById, variantOf, type Quest } from './quest'
 
@@ -41,6 +42,8 @@ export type QuestState = {
   files: QuestFile[]
   /** Their onboarding answers (tool, role, goal…); null until they answer anything. */
   profile: Profile | null
+  /** Pro track: which tasks their agent's evidence has passed, and whether it's connected. */
+  pro: ProStatus
 }
 
 /** "Sam" from "Sam Lee" — the first name the app calls the learner. */
@@ -249,6 +252,8 @@ export const badgesOf = (s: QuestState, today: string): Badge[] => {
     { id: 'level-3', name: 'Tool Tamer', desc: 'Clear Level 3', icon: 'wrench', test: levelDone(s, 3) },
     { id: 'halfway', name: 'Halfway Hero', desc: 'Finish 5 quests', icon: 'mountain', test: done >= 5 },
     { id: 'shipped', name: 'Shipped It', desc: 'Beat the final boss', icon: 'rocket', test: isComplete(s.progress.t10) },
+    { id: 'plugged-in', name: 'Plugged In', desc: 'Your agent connected over MCP', icon: 'zap', test: !!s.pro.lastUsed },
+    { id: 'agent-pro', name: 'Agent Pro', desc: 'Pass every pro-track level', icon: 'medal', test: PRO_TASKS.length > 0 && PRO_TASKS.every((t) => s.pro.tasks[t.id]?.passed) },
   ]
   return list.map(({ test, ...b }) => ({ ...b, earned: test }))
 }
@@ -283,6 +288,8 @@ export const xpOf = (s: QuestState, today: string) => {
   }
   // First upload per quest earns the showcase bonus (more files are welcome, not farmed).
   xp += new Set(s.files.map((f) => f.task_id)).size * XP.upload
+  // Pro-track levels count once each, when the agent's evidence first passes.
+  xp += PRO_TASKS.reduce((a, t) => a + (s.pro.tasks[t.id]?.passed ? t.xp : 0), 0)
   xp += badgesOf(s, today).filter((b) => b.earned).length * XP.badge
   return xp
 }

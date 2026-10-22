@@ -69,6 +69,7 @@ const state = (over: { profile?: Partial<Profile> | null; progress?: number; fil
     progress: Object.fromEntries(Array.from({ length: over.progress ?? 0 }, (_, i) => [`t${i}`, {}])),
     files: Array.from({ length: over.files ?? 0 }, () => ({})),
     coachMessages: over.coachMessages ?? 0,
+    pro: { tasks: {}, hasToken: false, lastUsed: null },
   }) as unknown as QuestState
 
 describe('needsOnboarding / showPersonalisePrompt', () => {

@@ -5,9 +5,12 @@
  * tomorrow. Server-only; API routes import this.
  */
 
+import crypto from 'crypto'
 import postgres from 'postgres'
 import type { Activity, Checkin, Cheer, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
+import type { CheckResult, EvidenceItem, Submission } from './pro'
 import type { Profile, ProfilePatch } from './profile'
+import { hmac } from './session'
 
 // One client per server instance. `prepare: false` because Neon's pooled URL sits
 // behind PgBouncer, which can't hold prepared statements across transactions.
@@ -128,6 +131,23 @@ create table if not exists quest_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create table if not exists quest_mcp_tokens (
+  user_id text primary key references quest_users (id) on delete cascade,
+  token_hash text not null unique,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+create table if not exists quest_evidence (
+  id bigserial primary key,
+  user_id text not null references quest_users (id) on delete cascade,
+  task_id text not null,
+  items jsonb not null,
+  results jsonb not null,
+  passed boolean not null,
+  redactions int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists quest_evidence_user on quest_evidence (user_id, task_id, id);
 `
 
 let ready: Promise<void> | null = null
@@ -184,7 +204,7 @@ export async function touchUser(u: { id: string; email: string; name: string; im
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
   const id = user.id
-  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile] = await Promise.all([
+  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile, evidence, token] = await Promise.all([
     sql`select * from quest_progress where user_id = ${id}`,
     sql`select to_char(day, 'YYYY-MM-DD') as day from quest_busy where user_id = ${id} order by day`,
     sql`select id, task_id, message, image is not null as has_image, created_at from quest_checkins where user_id = ${id} order by id desc limit 200`,
@@ -193,12 +213,15 @@ export async function loadState(user: Learner): Promise<QuestState> {
     // half-hour time zones still land on the right local day). Collapsing keeps this
     // small forever, and no burst of activity can push old days out.
     sql`select min(at) as at from quest_activity
-        where user_id = ${id} and kind in ('step', 'sitting', 'complete', 'checkin', 'upload')
+        where user_id = ${id} and kind in ('step', 'sitting', 'complete', 'checkin', 'upload', 'evidence')
         group by floor(extract(epoch from at) / 900) order by 1`,
     sql`select id, from_name, message, created_at, seen_at from quest_cheers where user_id = ${id} order by id desc limit 20`,
     sql`select count(*)::int as n from quest_messages where user_id = ${id} and role = 'user'`,
     sql`select id, task_id, url, name, content_type, size, created_at from quest_files where user_id = ${id} order by id desc limit 500`,
     sql`select * from quest_profiles where user_id = ${id}`,
+    sql`select task_id, bool_or(passed) as passed, min(created_at) filter (where passed) as at, count(*)::int as attempts
+        from quest_evidence where user_id = ${id} group by task_id`,
+    sql`select last_used_at from quest_mcp_tokens where user_id = ${id}`,
   ])
   return {
     user,
@@ -212,6 +235,11 @@ export async function loadState(user: Learner): Promise<QuestState> {
     coachMessages: Number(msgs[0]?.n || 0),
     files: files.map((r) => ({ ...r, id: Number(r.id), size: Number(r.size), created_at: iso(r.created_at) })) as unknown as QuestFile[],
     profile: profile[0] ? toProfile(profile[0]) : null,
+    pro: {
+      tasks: Object.fromEntries(evidence.map((r) => [String(r.task_id), { passed: !!r.passed, at: iso(r.at), attempts: Number(r.attempts) }])),
+      hasToken: token.length > 0,
+      lastUsed: token[0] ? iso(token[0].last_used_at) : null,
+    },
   }
 }
 
@@ -455,4 +483,62 @@ export async function usedBytes(userId: string) {
   await ensureSchema()
   const rows = await sql`select coalesce(sum(size), 0)::bigint as n from quest_files where user_id = ${userId}`
   return Number(rows[0]?.n || 0)
+}
+
+// ───────────────────────────── pro track: MCP tokens + evidence ─────────────────────────────
+
+/**
+ * Issue a fresh MCP token for a learner, replacing any old one (so a leaked token dies the
+ * moment they make a new one). Only an HMAC of it is stored; the raw token is returned
+ * once, for the learner to paste into their agent's config.
+ */
+export async function rotateMcpToken(userId: string): Promise<string> {
+  await ensureSchema()
+  const token = `qst_${crypto.randomBytes(32).toString('base64url')}`
+  await sql`
+    insert into quest_mcp_tokens (user_id, token_hash) values (${userId}, ${hmac(token)})
+    on conflict (user_id) do update set token_hash = excluded.token_hash, created_at = now(), last_used_at = null`
+  return token
+}
+
+/** The learner a raw MCP token belongs to (and mark it used), or null for an unknown token. */
+export async function userForMcpToken(token: string): Promise<string | null> {
+  if (!/^qst_[A-Za-z0-9_-]{20,}$/.test(token)) return null
+  await ensureSchema()
+  const h = hmac(token)
+  const rows = await sql`select user_id, last_used_at from quest_mcp_tokens where token_hash = ${h}`
+  if (!rows[0]) return null
+  // At most one write a minute per token.
+  const last = rows[0].last_used_at ? new Date(rows[0].last_used_at as string | Date).getTime() : 0
+  if (Date.now() - last > 60_000) await sql`update quest_mcp_tokens set last_used_at = now() where token_hash = ${h}`
+  return String(rows[0].user_id)
+}
+
+/** Store one checked submission (items already scrubbed by verify). Returns its id. */
+export async function addEvidence(userId: string, taskId: string, v: { passed: boolean; items: EvidenceItem[]; results: CheckResult[]; redactions: number }) {
+  await ensureSchema()
+  const rows = await sql`
+    insert into quest_evidence (user_id, task_id, items, results, passed, redactions)
+    values (${userId}, ${taskId}, ${sql.json(v.items as unknown as postgres.JSONValue)}, ${sql.json(v.results as unknown as postgres.JSONValue)}, ${v.passed}, ${v.redactions})
+    returning id`
+  // Keep only the latest 20 per task.
+  await sql`delete from quest_evidence where user_id = ${userId} and task_id = ${taskId} and id not in (select id from quest_evidence where user_id = ${userId} and task_id = ${taskId} order by id desc limit 20)`
+  return Number(rows[0].id)
+}
+
+/** A learner's submissions, newest first (optionally for one task). */
+export async function listEvidence(userId: string, taskId?: string, limit = 10): Promise<Submission[]> {
+  await ensureSchema()
+  const rows = taskId
+    ? await sql`select * from quest_evidence where user_id = ${userId} and task_id = ${taskId} order by id desc limit ${limit}`
+    : await sql`select * from quest_evidence where user_id = ${userId} order by id desc limit ${limit}`
+  return rows.map((r) => ({
+    id: Number(r.id),
+    task_id: String(r.task_id),
+    passed: !!r.passed,
+    redactions: Number(r.redactions),
+    items: (r.items as EvidenceItem[]) || [],
+    results: (r.results as CheckResult[]) || [],
+    created_at: iso(r.created_at) || '',
+  }))
 }

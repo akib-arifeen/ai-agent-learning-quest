@@ -115,7 +115,7 @@ export function cleanProfilePatch(body: unknown): ProfilePatch {
 export const setupOf = (p?: Profile | null): Setup => ({ tool: p?.tool || 'kilo', os: p?.os || '' })
 
 /** Has this learner done anything yet? (Ticks, uploads or a chat with Spark.) */
-const hasStarted = (s: QuestState) => Object.keys(s.progress).length > 0 || s.files.length > 0 || s.coachMessages > 0
+const hasStarted = (s: QuestState) => Object.keys(s.progress).length > 0 || s.files.length > 0 || s.coachMessages > 0 || Object.values(s.pro?.tasks || {}).some((t) => t.attempts > 0)
 
 /**
  * Show the full-screen onboarding: a brand-new learner who hasn't finished or skipped it.

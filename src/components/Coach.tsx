@@ -5,6 +5,7 @@ import { ArrowUp, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { firstName } from '@/lib/game'
+import { proTaskById } from '@/lib/pro'
 import { questById, variantOf } from '@/lib/quest'
 import { useQuest } from './QuestProvider'
 import Spark from './Spark'
@@ -44,6 +45,7 @@ export default function Coach({ open, taskId, draft, onClose }: { open: boolean;
   showing.current = taskId
 
   const q = questById(taskId)
+  const pro = proTaskById(taskId)
   const v = q ? variantOf(q, state.progress[q.id]?.variant, setup) : null
 
   // Load this quest's history the first time the panel opens on it.
@@ -148,7 +150,8 @@ export default function Coach({ open, taskId, draft, onClose }: { open: boolean;
               <Spark size={44} mood={mood} follow />
               <div style={{ minWidth: 0 }}>
                 <b>Spark</b>
-                <small>{q ? `Coaching Quest ${q.num} · ${v?.title}` : 'Your quest coach'}</small>
+                <small>{q ? `Coaching Quest ${q.num} · ${v?.title}` : pro ? `Level ${pro.level} · ${pro.title}` : 'Your quest coach'}</small>
+                {pro && <small style={{ display: 'block' }}>Coaching your pro-track level</small>}
               </div>
               <button className="iconbtn" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Close coach">
                 <X size={20} />

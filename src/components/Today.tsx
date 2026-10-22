@@ -3,7 +3,7 @@
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { ArrowRight, Clock, PartyPopper, Trophy } from 'lucide-react'
-import { fmtDay, slotXp } from '@/lib/game'
+import { dayOf, fmtDay, sittingsPerWeek, slotXp } from '@/lib/game'
 import { questById, variantOf } from '@/lib/quest'
 import { useQuest } from './QuestProvider'
 
@@ -51,6 +51,25 @@ export default function Today() {
         </p>
       </div>
     )
+
+  // A planned rest day with nothing due today (unless she already worked, then the done state below wins).
+  if (pace.restToday && slot.date > today && !state.days.some((x) => dayOf(x) === today)) {
+    const perWeek = sittingsPerWeek(state.profile?.weekly_minutes)
+    return (
+      <div className="today is-done">
+        <div className="today__top">
+          <span className="today__label">Rest day</span>
+        </div>
+        <h2>Rest day. Your plan has {perWeek} sittings a week; the next one is {fmtDay(slot.date)}.</h2>
+        <p style={{ marginTop: 8 }}>
+          Your streak is safe ·{' '}
+          <Link href={`/quest/${slot.items[0].questId}`} style={{ fontWeight: 700 }}>
+            peek at it
+          </Link>
+        </p>
+      </div>
+    )
+  }
 
   // Done for today = today's sitting is finished and the next one is planned for later.
   const doneToday = slot.date > today && sum.slots.some((s) => s.date <= today)

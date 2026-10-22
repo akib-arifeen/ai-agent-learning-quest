@@ -11,7 +11,7 @@
  * `variantOf` fills with the learner's own tool's words; see tools.ts for the list.
  */
 
-import { DEFAULT_SETUP, forTool, type Setup } from './tools'
+import { DEFAULT_SETUP, forTool, toolOf, type Setup } from './tools'
 
 export type Sitting = { title: string; steps: string[] }
 
@@ -1235,6 +1235,53 @@ export const QUESTS: Quest[] = [
 
 /** Look up a quest by id. */
 export const questById = (id: string) => QUESTS.find((q) => q.id === id)
+
+/** An official resource for an app a quest uses. `note` flags anything unusual (e.g. community-maintained). */
+export type LearnLink = { label: string; url: string; note?: string }
+
+/** Official docs for the apps the quests use, keyed by the quest tool chip they help with ('Blender', 'Godot 4'…). */
+export const LEARN: Record<string, LearnLink[]> = {
+  Blender: [
+    { label: 'Blender Python API quickstart', url: 'https://docs.blender.org/api/current/info_quickstart.html' },
+    { label: 'Blender from the command line', url: 'https://docs.blender.org/manual/en/latest/advanced/command_line/index.html' },
+  ],
+  Houdini: [{ label: 'Houdini Python (HOM) introduction', url: 'https://www.sidefx.com/docs/houdini/hom/intro.html' }],
+  'After Effects': [{ label: 'After Effects Scripting Guide', url: 'https://ae-scripting.docsforadobe.dev/', note: 'community-maintained reference' }],
+  ExtendScript: [{ label: 'After Effects Scripting Guide', url: 'https://ae-scripting.docsforadobe.dev/', note: 'community-maintained reference' }],
+  'Unreal Engine': [{ label: 'Scripting the Unreal Editor using Python', url: 'https://dev.epicgames.com/documentation/en-us/unreal-engine/scripting-the-unreal-editor-using-python' }],
+  'Godot 4': [{ label: 'Godot: Your first 3D game', url: 'https://docs.godotengine.org/en/stable/getting_started/first_3d_game/index.html' }],
+  GDScript: [{ label: 'Godot: Your first 3D game', url: 'https://docs.godotengine.org/en/stable/getting_started/first_3d_game/index.html' }],
+  'Roblox Studio': [{ label: 'Roblox: Scripting', url: 'https://create.roblox.com/docs/scripting' }],
+  Luau: [{ label: 'Roblox: Scripting', url: 'https://create.roblox.com/docs/scripting' }],
+  'itch.io': [{ label: 'itch.io: Uploading HTML5 games', url: 'https://itch.io/docs/creators/html5' }],
+  Browser: [
+    { label: 'MDN: Canvas tutorial', url: 'https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial' },
+  ],
+  Music: [{ label: 'MDN: Using the Web Audio API', url: 'https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_Web_Audio_API' }],
+  // Not mapped: 'Python' (the app-specific chip carries the Python docs), 'Netlify Drop' (no chip; t8's 'Your writing' is prose, not a deploy tool).
+}
+
+/**
+ * Learn-more links for a variant: its tool chips' official docs, deduped by URL. A chip of
+ * '{tool}', or the agent's name once variantOf has worded it, maps to that agent's official getting-started page.
+ */
+export const learnLinksFor = (tools: string[], setup: Setup = DEFAULT_SETUP): LearnLink[] => {
+  const seen = new Set<string>()
+  const out: LearnLink[] = []
+  for (const chip of tools) {
+    const agent = toolOf(setup.tool)
+    const links = chip === '{tool}' || chip === agent.name ? (agent.start ? [agent.start] : []) : LEARN[chip] || []
+    for (const l of links) if (!seen.has(l.url) && seen.add(l.url)) out.push(l)
+  }
+  return out
+}
+
+/** The concept pictures drawn by components/Diagram.tsx. */
+export type DiagramName = 'loop' | 'brief' | 'context' | 'mcp' | 'delegate' | 'team'
+
+/** Which picture belongs to a quest or pro level id (null = none). */
+export const diagramFor = (id: string): DiagramName | null =>
+  (({ t0: 'loop', t1: 'brief', t2: 'loop', t3: 'context', t4: 'loop', t8: 'context', p3: 'mcp', p5: 'delegate', p7: 'team' }) as Record<string, DiagramName>)[id] ?? null
 
 // Worded variants are cached per tool + OS, so each one is one stable object (cheap to
 // call in loops, and safe as a React dependency).

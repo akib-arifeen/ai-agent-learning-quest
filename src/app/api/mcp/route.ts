@@ -51,10 +51,8 @@ const handler = createMcpHandler(
         const next = PRO_TASKS.find((t) => !s.pro.tasks[t.id]?.passed)
         return text(
           [
-            `Learner: ${firstName(r.learner.name)}`,
-            `AI tool: ${toolOf(setupOf(s.profile).tool).name}`,
-            `Pro track: ${passed} of ${PRO_TASKS.length} levels passed`,
-            next ? `Next task: ${next.id} (${next.title}). Call quest_get_task with taskId "${next.id}".` : 'Every level is passed.',
+            `${firstName(r.learner.name)} uses ${toolOf(setupOf(s.profile).tool).name}. Pro track: ${passed}/${PRO_TASKS.length} levels passed.`,
+            next ? `Next: ${next.id} (${next.title}). Call quest_get_task with taskId "${next.id}".` : 'Every level is passed.',
           ].join('\n'),
         )
       },
@@ -64,7 +62,7 @@ const handler = createMcpHandler(
       'quest_tasks',
       {
         title: 'List pro track tasks',
-        description: 'Lists every pro track task with its id, level, title, XP and the learner\'s status (passed, number of attempts, or not started).',
+        description: 'Lists every pro track task with its id, level, title, XP and the learner\'s status ("passed", "not started", or "N try/tries" while unpassed).',
         inputSchema: z.object({}),
       },
       async (_args: unknown, ctx: Ctx) => {
@@ -73,10 +71,10 @@ const handler = createMcpHandler(
         const s = await loadState(r.learner)
         const rows = PRO_TASKS.map((t) => {
           const st = s.pro.tasks[t.id]
-          const status = !st ? 'not started' : st.passed ? `passed (${st.attempts} attempt${st.attempts === 1 ? '' : 's'})` : `${st.attempts} attempt${st.attempts === 1 ? '' : 's'}, not passed yet`
-          return `| ${t.id} | ${t.level} | ${t.title} | ${t.xp} | ${status} |`
+          const status = !st ? 'not started' : st.passed ? 'passed' : `${st.attempts} ${st.attempts === 1 ? 'try' : 'tries'}`
+          return `- ${t.id} L${t.level} ${t.title} · ${t.xp} XP · ${status}`
         })
-        return text(['| id | level | title | xp | status |', '| --- | --- | --- | --- | --- |', ...rows].join('\n'))
+        return text(rows.join('\n'))
       },
     )
 
@@ -93,25 +91,18 @@ const handler = createMcpHandler(
         if (r.error) return r.error
         const t = proTaskById(args.taskId)
         if (!t) return unknownTask(args.taskId)
-        const rows = t.evidence.map((e) => `| ${e.id} | ${e.kind} | ${e.label} | ${e.hint} | ${e.optional ? 'optional' : 'required'} |`)
+        const rows = t.evidence.map((e) => `- ${e.id} (${e.kind}${e.optional ? ', optional' : ''}): ${e.label}. ${e.hint}`)
         return text(
           [
-            `# ${t.id}: ${t.title} (level ${t.level}, ${t.xp} XP)`,
-            '',
-            `## Concept\n${t.concept}`,
-            `## Build\n${t.build.map((b, i) => `${i + 1}. ${b}`).join('\n')}`,
-            `## Done when\n${t.done}`,
-            '## Evidence to send',
-            '| id | kind | label | hint | required |',
-            '| --- | --- | --- | --- | --- |',
+            `${t.id}: ${t.title} (level ${t.level}, ${t.xp} XP)`,
+            `Concept: ${t.concept}`,
+            'Build:',
+            ...t.build.map((b, i) => `${i + 1}. ${b}`),
+            `Done when: ${t.done}`,
+            'Evidence:',
             ...rows,
-            '',
-            '## How to submit',
-            `Call quest_submit_evidence with taskId "${t.id}" and items [{ id, kind, source, content }], one per row above.`,
-            '- Send real file contents and real command output, not summaries.',
-            '- Send only what is listed. Never send .env files, keys, tokens or passwords.',
-            '- Secret-looking strings are removed before anything is stored.',
-            '- The learner can see every submission in the Quest app, and so can their mentor.',
+            'Items not marked optional are required.',
+            `Submit with quest_submit_evidence (taskId "${t.id}", items [{ id, kind, source, content }]). Send real file contents and command output, only what is listed. Never send .env files, keys, tokens or passwords: secrets are stripped, and the learner and mentor see every submission.`,
           ].join('\n'),
         )
       },
@@ -128,7 +119,7 @@ const handler = createMcpHandler(
           items: z
             .array(
               z.object({
-                id: z.string().max(40).describe('The evidence id from the task table'),
+                id: z.string().max(40).describe('The evidence id listed by quest_get_task'),
                 kind: z.enum(['file', 'command', 'url', 'text']),
                 source: z.string().max(300).optional().describe('File path, or the command that was run'),
                 content: z.string().max(EVIDENCE_LIMITS.itemChars * 2),

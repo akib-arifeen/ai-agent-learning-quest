@@ -4,6 +4,8 @@ import { ArrowLeft, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Diagram from '@/components/Diagram'
+import { diagramFor } from '@/lib/quest'
 import { CopyBox, SubmissionCard } from '@/components/ConnectAgent'
 import { useQuest } from '@/components/QuestProvider'
 import Rich from '@/components/Rich'
@@ -116,6 +118,8 @@ function ProTaskView({ taskId }: { taskId: string }) {
           ))}
         </ol>
       </section>
+
+      {diagramFor(task.id) && <Diagram name={diagramFor(task.id)!} />}
 
       <div className="done-when">
         <span className="mono">Done when</span>

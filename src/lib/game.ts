@@ -44,7 +44,12 @@ export type QuestState = {
   profile: Profile | null
   /** Pro track: which tasks their agent's evidence has passed, and whether it's connected. */
   pro: ProStatus
+  /** Weekly-time answers by the day they took effect, oldest first; empty until the answer first changes. */
+  paceLog?: PaceChange[]
 }
+
+/** One weekly-time answer and the day it started to apply. */
+export type PaceChange = { since: string; weekly: number | null }
 
 /** "Sam" from "Sam Lee" — the first name the app calls the learner. */
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || 'there'
@@ -119,13 +124,51 @@ export const questStatus = (s: QuestState, q: Quest): QuestStatus =>
 
 // ─────────────────────────────────── schedule ───────────────────────────────────
 
+/** Weekly time from onboarding (minutes) → planned sittings a week. No answer = every day, the original plan. */
+export const sittingsPerWeek = (weeklyMinutes?: number | null): number =>
+  !weeklyMinutes ? 7 : weeklyMinutes <= 60 ? 2 : weeklyMinutes <= 180 ? 3 : weeklyMinutes <= 300 ? 5 : 7
+
+/** Study days in each 7-day cycle counted from the start date (0 = the start weekday), spread so rest falls between sittings. */
+export const STUDY_DAYS: Record<number, number[]> = { 2: [0, 3], 3: [0, 2, 4], 5: [0, 1, 2, 3, 4], 7: [0, 1, 2, 3, 4, 5, 6] }
+
+/**
+ * A planned rest day: not a study day in the learner's weekly pattern. The schedule skips
+ * rest days and they shield the streak, like busy days; work done on one still counts.
+ */
+export const isRestDay = (s: QuestState, day: string): boolean => {
+  const n = sittingsPerWeek(weeklyOn(s, day))
+  if (n >= 7) return false
+  const offset = ((daysBetween(s.startDate, day) % 7) + 7) % 7
+  // A missing start date gives NaN; calling every day a rest day would make buildSchedule loop forever.
+  if (Number.isNaN(offset)) return false
+  return !STUDY_DAYS[n].includes(offset)
+}
+
+/**
+ * The weekly-time answer that applied on a day. Changing the answer re-plans from that day on
+ * only, so past days keep the plan the learner actually had (their streaks and badges with it).
+ */
+export const weeklyOn = (s: QuestState, day: string): number | null | undefined => {
+  const log = s.paceLog
+  if (!log?.length) return s.profile?.weekly_minutes
+  let weekly = log[0].weekly
+  for (const c of log) if (c.since <= day) weekly = c.weekly
+  return weekly
+}
+
+/** The pace log once the answer changes to `weekly` on `today` (the server stores the same rows). */
+export const withPace = (s: QuestState, weekly: number | null, today: string): PaceChange[] => {
+  const log = s.paceLog?.length ? s.paceLog : [{ since: s.startDate, weekly: s.profile?.weekly_minutes ?? null }]
+  return [...log.filter((c) => c.since < today), { since: today, weekly }]
+}
+
 export type SlotItem = { questId: string; n: number; title: string; done: boolean }
 export type Slot = { date: string; items: SlotItem[]; done: boolean }
 
 /**
- * One sitting per day, starting on the start date. A busy day ("event or activity")
- * is skipped and pushes everything after it back by a day. Base Camp shares day one
- * with Quest 1.
+ * One sitting per study day, starting on the start date. Rest days come from the learner's
+ * weekly time (see isRestDay); a busy day ("event or activity") is skipped the same way and
+ * pushes everything after it back. Base Camp shares day one with Quest 1.
  */
 export const buildSchedule = (s: QuestState): Slot[] => {
   const busy = new Set(s.busy)
@@ -146,7 +189,7 @@ export const buildSchedule = (s: QuestState): Slot[] => {
   }
   let d = s.startDate
   for (const slot of slots) {
-    while (busy.has(d)) d = addDays(d, 1)
+    while (busy.has(d) || isRestDay(s, d)) d = addDays(d, 1)
     slot.date = d
     slot.done = slot.items.every((i) => i.done)
     d = addDays(d, 1)
@@ -154,15 +197,15 @@ export const buildSchedule = (s: QuestState): Slot[] => {
   return slots
 }
 
-export type Pace = { current?: Slot; behind: number; ahead: number; todayDone: boolean; busyToday: boolean; finished: boolean }
+export type Pace = { current?: Slot; behind: number; ahead: number; todayDone: boolean; busyToday: boolean; restToday: boolean; finished: boolean }
 
-/** Where the learner is against the plan, today. */
-export const paceOf = (slots: Slot[], today: string, busy: string[] = []): Pace => {
+/** Where the learner is against the plan, today. `restToday`: today is a planned rest day (see isRestDay). */
+export const paceOf = (slots: Slot[], today: string, busy: string[] = [], restToday = false): Pace => {
   const current = slots.find((x) => !x.done)
   const behind = slots.filter((x) => !x.done && x.date < today).length
   const ahead = slots.filter((x) => x.done && x.date > today).length
   const todays = slots.find((x) => x.date === today)
-  return { current, behind, ahead, todayDone: !!todays?.done, busyToday: busy.includes(today), finished: !current }
+  return { current, behind, ahead, todayDone: !!todays?.done, busyToday: busy.includes(today), restToday, finished: !current }
 }
 
 /** The day a quest is due: the date of the slot holding its last sitting. */
@@ -179,7 +222,7 @@ export const activeDays = (s: QuestState) => new Set(s.days.map(dayOf))
 
 /**
  * Current streak: consecutive active days ending today (or yesterday — today isn't
- * over yet). Busy days are shields: they neither count nor break the chain.
+ * over yet). Busy days and rest days are shields: they neither count nor break the chain.
  */
 export const currentStreak = (s: QuestState, today: string) => {
   const active = activeDays(s)
@@ -188,13 +231,13 @@ export const currentStreak = (s: QuestState, today: string) => {
   let n = 0
   for (let guard = 0; guard < 400; guard++) {
     if (active.has(d)) n++
-    else if (!busy.has(d)) break
+    else if (!busy.has(d) && !isRestDay(s, d)) break
     d = addDays(d, -1)
   }
   return n
 }
 
-/** Longest streak ever, with the same busy-day shield rule. */
+/** Longest streak ever, with the same busy-day and rest-day shield rule. */
 export const bestStreak = (s: QuestState, today: string) => {
   const active = activeDays(s)
   if (!active.size) return 0
@@ -204,7 +247,7 @@ export const bestStreak = (s: QuestState, today: string) => {
   let best = 0
   while (d <= today) {
     if (active.has(d)) best = Math.max(best, ++run)
-    else if (!busy.has(d) && d !== today) run = 0
+    else if (!busy.has(d) && !isRestDay(s, d) && d !== today) run = 0
     d = addDays(d, 1)
   }
   return best
@@ -229,7 +272,7 @@ export const badgesOf = (s: QuestState, today: string): Badge[] => {
     const busy = new Set(s.busy)
     for (let i = 1; i < days.length; i++) {
       let gap = 0
-      for (let d = addDays(days[i - 1], 1); d < days[i]; d = addDays(d, 1)) if (!busy.has(d)) gap++
+      for (let d = addDays(days[i - 1], 1); d < days[i]; d = addDays(d, 1)) if (!busy.has(d) && !isRestDay(s, d)) gap++
       if (gap >= 2) return true
     }
     return false
@@ -310,7 +353,7 @@ export const summarize = (s: QuestState, today: string) => {
   const xp = xpOf(s, today)
   return {
     slots,
-    pace: paceOf(slots, today, s.busy),
+    pace: paceOf(slots, today, s.busy, isRestDay(s, today)),
     xp,
     rank: rankOf(xp),
     streak: currentStreak(s, today),

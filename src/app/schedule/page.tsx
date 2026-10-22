@@ -5,7 +5,7 @@ import { Check, ChevronDown, Flag, Shield, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import PageHead from '@/components/PageHead'
 import { useQuest } from '@/components/QuestProvider'
-import { addDays, daysBetween, deadlineOf, fmtDay } from '@/lib/game'
+import { STUDY_DAYS, addDays, daysBetween, deadlineOf, fmtDay, isRestDay, sittingsPerWeek } from '@/lib/game'
 import { WEEKLY } from '@/lib/profile'
 import { DAY_RULES, questById, variantOf } from '@/lib/quest'
 
@@ -18,6 +18,9 @@ export default function SchedulePage() {
   const { sum, state, today, setBusy, setup } = useQuest()
   const busy = new Set(state.busy)
   const weeklyLabel = state.profile?.weekly_minutes ? WEEKLY.find((w) => w.minutes === state.profile?.weekly_minutes)?.label : ''
+  const perWeek = sittingsPerWeek(state.profile?.weekly_minutes)
+  const studyNames = STUDY_DAYS[perWeek].map((o) => fmtDay(addDays(state.startDate, o), { weekday: 'long' }))
+  const studyList = studyNames.length > 1 ? `${studyNames.slice(0, -1).join(', ')} and ${studyNames[studyNames.length - 1]}` : studyNames[0]
   const bySlot = new Map(sum.slots.map((s) => [s.date, s]))
   const last = sum.slots[sum.slots.length - 1]?.date || today
   const [all, setAll] = useState(false)
@@ -47,11 +50,11 @@ export default function SchedulePage() {
     <div className="sched">
       <div>
         <PageHead title="Your plan">
-          One sitting a day · finish line <b style={{ color: 'var(--color-ink)' }}>{fmtDay(last, { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+          {weeklyLabel ? `${perWeek} sittings a week` : 'One sitting a day'} · finish line <b style={{ color: 'var(--color-ink)' }}>{fmtDay(last, { weekday: 'long', day: 'numeric', month: 'long' })}</b>
         </PageHead>
         {weeklyLabel && (
           <p className="muted" style={{ fontSize: 'var(--text-sm)' }}>
-            You said about {weeklyLabel} a week. The plan is one sitting a day; on days you can’t, mark them busy and the plan slides back.
+            You said about {weeklyLabel} a week, so your plan has {perWeek} sittings a week, on {studyList}. Busy days slide the plan back, and rest days don’t break your streak.
           </p>
         )}
 
@@ -100,17 +103,20 @@ export default function SchedulePage() {
                               </span>
                             )
                           })
+                        ) : isRestDay(state, d) ? (
+                          <small className="muted">Rest</small>
                         ) : (
                           <small>Free day</small>
                         )}
                       </div>
                       <div className="row" style={{ gap: 4 }}>
                         {slot?.done && !isBusy && (
-                          <span className="chip chip--mint" aria-label="Done">
-                            <Check size={14} strokeWidth={3} />
+                          <span className="chip chip--mint">
+                            <Check size={14} strokeWidth={3} aria-hidden />
+                            <span className="sr-only">Done</span>
                           </span>
                         )}
-                        {canToggle(d) && !slot?.done && (
+                        {canToggle(d) && !slot?.done && (isBusy || !isRestDay(state, d)) && (
                           <button
                             className="iconbtn"
                             onClick={() => setBusy(d, !isBusy)}

@@ -3,7 +3,7 @@
 import { MotionConfig } from 'motion/react'
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { type ProgressRow, type QuestState, localDay, summarize } from '@/lib/game'
+import { type ProgressRow, type QuestState, localDay, summarize, withPace } from '@/lib/game'
 import { EMPTY_PROFILE, type Profile, type ProfilePatch, needsOnboarding, setupOf } from '@/lib/profile'
 import type { Setup } from '@/lib/tools'
 import { LevelUp, type LevelUpInfo, Toasts, type Toast, type ToastInput, confetti } from './Celebrate'
@@ -245,12 +245,13 @@ function SignedInApp({ children }: { children: React.ReactNode }) {
         const next: Profile = { ...EMPTY_PROFILE, ...s.profile, ...fields }
         if (complete) next.completed_at = now
         if (dismiss) next.dismissed_at = now
-        return { ...s, profile: next }
+        const paced = 'weekly_minutes' in fields && next.weekly_minutes !== (s.profile?.weekly_minutes ?? null)
+        return { ...s, profile: next, paceLog: paced ? withPace(s, next.weekly_minutes, localDay()) : s.paceLog }
       })
       profileSaves.current++
       const run = async () => {
         try {
-          const res = await send('/api/profile', patch)
+          const res = await send('/api/profile', { ...patch, today: localDay() })
           if (!res?.ok) {
             const b = await res?.json().catch(() => ({}))
             error(b?.error || 'Couldn’t save that. Check your connection.')

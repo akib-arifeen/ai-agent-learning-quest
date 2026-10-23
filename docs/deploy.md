@@ -1,7 +1,11 @@
 # Deploy
 
-**Status: not deployed.** Production still serves the pre-pacing build. The lead holds approval
-because the deploy applies one additive table. Do not run this without that approval.
+**Status: deployed 2026-10-23** at commit `f365910`. Production serves the pacing build.
+Evidence: `/Users/seechange/work-dir/akib/HANDOFF/reports/quest.md`.
+
+**Known gap:** `SMTP_*` is not set in Production, so email sign-in codes will not send. Google
+OAuth is configured. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and `SMTP_PASS` before relying on
+email sign-in.
 
 ## What the deploy changes
 

@@ -119,16 +119,25 @@ export default function SignIn({ onDone, gate }: { onDone: () => void; gate?: Ga
   )
 }
 
+/**
+ * The hidden state an entrance starts from, or `false` — meaning "render the settled state at
+ * once" — when the learner asked for less motion. Nothing on the landing waits behind a fade.
+ */
+export function entranceFrom<T>(reduce: boolean | null, from: T): T | false {
+  return reduce ? false : from
+}
+
 /** The landing: what this is, a taste of the map, and one big button. */
 export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
+  const reduce = useReducedMotion()
   return (
     <main className="signin">
-      <motion.section className="signin__copy" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+      <motion.section className="signin__copy" initial={entranceFrom(reduce, { opacity: 0, y: 16 })} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
         <span className="mono muted">Creative AI Agent Quest</span>
         <h1>Learn to build anything with an AI agent.</h1>
         <ul className="signin__points">
           {POINTS.map((p, i) => (
-            <motion.li key={p.text} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.08, duration: 0.4 }}>
+            <motion.li key={p.text} initial={entranceFrom(reduce, { opacity: 0, x: -10 })} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.06 + i * 0.05, duration: 0.3 }}>
               <span className="signin__ico">
                 <p.icon size={18} />
               </span>
@@ -139,9 +148,9 @@ export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void })
         <motion.button
           className="btn btn--lg start"
           onClick={onStart}
-          initial={{ opacity: 0, y: 10 }}
+          initial={entranceFrom(reduce, { opacity: 0, y: 10 })}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, type: 'spring', stiffness: 300, damping: 20 }}
+          transition={{ delay: 0.14, type: 'spring', stiffness: 300, damping: 20 }}
         >
           Start learning <ArrowRight className="btn__arrow" size={22} strokeWidth={2.6} />
         </motion.button>
@@ -235,9 +244,9 @@ export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void })
             <motion.div
               key={x.title}
               className="soon__card"
-              initial={{ opacity: 0, y: 12 }}
+              initial={entranceFrom(reduce, { opacity: 0, y: 12 })}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 + i * 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ delay: 0.18 + i * 0.05, duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             >
               <span className="soon__dot" data-tone={['cyan', 'mint', 'lav'][i]}>
                 {i + 1}

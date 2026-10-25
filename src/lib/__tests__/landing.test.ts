@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Landing } from '@/components/SignIn'
+import { Landing, entranceFrom } from '@/components/SignIn'
 
 // `SignIn` must be imported as a component for its client boundary to exist; the landing
 // itself renders to static markup with no browser APIs.
@@ -48,5 +48,14 @@ describe('marketing landing', () => {
   it('does not render the sign-in card or any secret', () => {
     expect(html).not.toContain('Let’s get you in')
     expect(html).not.toMatch(/qst_[A-Za-z0-9]{8}|sk-|-----BEGIN|password=/)
+  })
+
+  it('never starts hidden when the learner asked for less motion', () => {
+    const hidden = { opacity: 0, y: 16 }
+    // Settled on the first paint: no fade, no delay, nothing waiting to appear.
+    expect(entranceFrom(true, hidden)).toBe(false)
+    // With motion allowed, the entrance still starts hidden and animates in.
+    expect(entranceFrom(false, hidden)).toEqual(hidden)
+    expect(entranceFrom(null, hidden)).toEqual(hidden)
   })
 })

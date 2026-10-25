@@ -34,6 +34,7 @@ vi.mock('@/lib/db', () => ({
   touchUser: db.touchUser,
 }))
 
+import { GET as protectedResourceMetadata } from '@/app/.well-known/oauth-protected-resource/route'
 import { POST } from '@/app/api/mcp/route'
 import { PRO_TASKS } from '@/lib/pro'
 
@@ -107,6 +108,22 @@ describe('MCP route auth', () => {
   })
   it('returns 401 with a bad token', async () => {
     expect((await rpc('initialize', init, 'qst_not_a_real_token_0000')).status).toBe(401)
+  })
+  it('challenges with a resource_metadata URL that serves this resource', async () => {
+    const res = await rpc('initialize', init, null)
+    expect(res.status).toBe(401)
+    const challenge = res.headers.get('www-authenticate') || ''
+    expect(challenge).toContain('Bearer')
+    const match = /resource_metadata="([^"]+)"/.exec(challenge)
+    expect(match, challenge).not.toBeNull()
+
+    const metadataUrl = new URL(match![1])
+    expect(metadataUrl.origin).toBe('http://localhost:3000')
+    expect(metadataUrl.pathname).toBe('/.well-known/oauth-protected-resource')
+    const metadata = protectedResourceMetadata(new Request(metadataUrl))
+    expect(metadata.status).toBe(200)
+    expect(metadata.headers.get('content-type')).toContain('application/json')
+    expect((await metadata.json()).resource).toBe('http://localhost:3000/api/mcp')
   })
   it('initializes with a good token', async () => {
     const res = await rpc('initialize', init)

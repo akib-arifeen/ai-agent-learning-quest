@@ -48,7 +48,7 @@ No column is dropped or renamed. Existing tables are untouched.
 
 - [ ] `git status` clean; the branch is the one you intend to ship.
 - [ ] `npx tsc --noEmit` clean.
-- [ ] `npm test` all pass (422 at the time of writing).
+- [ ] `npm test` all pass (426 at the time of writing).
 - [ ] `npm run build` clean.
 - [ ] These env vars exist in the Vercel project (names only): `DATABASE_URL`, `AUTH_SECRET`,
       `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_SITE_URL`, `OPENAI_API_KEY`,
@@ -111,4 +111,7 @@ that file is the one in use.
 
 - The MCP route is documented for a remote streamable-HTTP client with a bearer token. Tokens are
   stored hashed; a token is shown once.
+- `/.well-known/oauth-protected-resource` serves RFC 9728 metadata for `/api/mcp` and deliberately
+  has no `authorization_servers`: the app has no OAuth authorization server, so clients still need
+  the manual token. The 401 `WWW-Authenticate` header points at this URL.
 - Never put a token, database URL or SMTP password in this file, a brief or a report.

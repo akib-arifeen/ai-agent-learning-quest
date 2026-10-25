@@ -71,8 +71,8 @@ export default function McpDocs({ origin }: { origin: string }) {
           <h2>Keep the token safe</h2>
           <ul className="numlist">
             <li>Treat the token like a password. Anyone who has it can act as you through the MCP tools.</li>
-            <li>Use one token per agent or computer. Making a new token stops the old one working straight away.</li>
-            <li>If a token leaks, replace it in Quest, then update your agent.</li>
+            <li>Quest keeps one connection token per learner. Creating a new one revokes the old token immediately, so update every agent or computer that uses it.</li>
+            <li>If a token leaks, rotate it in Quest, then update every place that used the old one.</li>
             <li>Never commit it, paste it into a public issue, or include it in a screenshot.</li>
             <li>The agent should send only the evidence a level lists. Secrets are stripped before saving, but do not rely on that: never send keys, tokens or <code>.env</code> files.</li>
           </ul>

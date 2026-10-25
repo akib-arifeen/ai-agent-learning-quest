@@ -46,6 +46,18 @@ const WORKS_WITH = ['kilo', 'opencode', 'claude-code', 'cursor', 'copilot']
 const TAKEOVER_SIZE = 220
 
 
+export type SignInPhase = 'hero' | 'takeover' | 'auth'
+
+/**
+ * The beat to show for a gate. A gate opens its card straight away, and leaving one returns
+ * to the landing — the provider stays mounted, so it would otherwise leave the card sitting
+ * over the marketing page.
+ */
+export function phaseFor(gate: Gate | undefined, phase: SignInPhase): SignInPhase {
+  if (!gate) return 'hero'
+  return phase === 'hero' ? 'auth' : phase
+}
+
 /**
  * The front door. On `/` it runs in three beats: the landing (one big "Start learning"),
  * Spark's takeover (it hops to the middle, beams, and zooms until it fills the screen),
@@ -55,8 +67,13 @@ const TAKEOVER_SIZE = 220
 export default function SignIn({ onDone, gate }: { onDone: () => void; gate?: Gate }) {
   const router = useRouter()
   const reduce = useReducedMotion()
-  const [phase, setPhase] = useState<'hero' | 'takeover' | 'auth'>(gate ? 'auth' : 'hero')
+  const [phase, setPhase] = useState<SignInPhase>(gate ? 'auth' : 'hero')
   const [from, setFrom] = useState({ x: 0, y: 0 })
+
+  // The gate is a prop, not a mount: moving between `/` and a gated page must restart the beat.
+  useEffect(() => {
+    setPhase((p) => phaseFor(gate, p))
+  }, [gate])
 
   // Start learning → Spark takes over the screen, then the sign-in card.
   function start(e: React.MouseEvent) {
@@ -67,18 +84,22 @@ export default function SignIn({ onDone, gate }: { onDone: () => void; gate?: Ga
     setTimeout(() => confetti(false, { x: 0.5, y: 0.5 }), 560)
   }
 
-  // A gate belongs to a real page: "Back" goes to the map, not back to the marketing pitch.
+  // "Back" always returns to the landing. From a gate that means the real page, and until the
+  // route catches up the card stays put instead of flashing the landing under the gate's URL.
   function back() {
-    if (gate) return router.push('/')
     setPhase('hero')
+    if (gate) router.push('/')
   }
+
+  // A gate keeps its card on screen even after Back reset the beat, until the route changes.
+  const view: SignInPhase = gate ? phaseFor(gate, phase) : phase
 
   return (
     <>
-      {phase === 'hero' ? <Landing onStart={start} /> : <Auth gate={gate} onDone={onDone} onBack={back} entering={phase === 'takeover'} />}
+      {view === 'hero' ? <Landing onStart={start} /> : <Auth gate={gate} onDone={onDone} onBack={back} entering={view === 'takeover'} />}
 
       <AnimatePresence>
-        {phase === 'takeover' && (
+        {view === 'takeover' && (
           <motion.div className="takeover" exit={{ opacity: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}>
             <motion.div className="takeover__wash" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} />
             <motion.div
@@ -135,6 +156,9 @@ export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void })
         </div>
         <p className="signin__fine">The quest is free from Base Camp to the final project — no paid tiers, no locked quests, no ceiling. Bring a free tool (Kilo Code or OpenCode) or one you already pay for. Sign in with Google or email; your progress saves, and you stay signed in.</p>
         <p className="signin__fine">Forgot your password? Ask your mentor — they can reset it for you. There is no self-serve reset email.</p>
+        <p className="signin__fine">
+          Connecting your own agent? Read the <Link href="/mcp">public MCP setup guide</Link>.
+        </p>
         <p className="signin__legal">
           <Link href="/privacy">Privacy</Link>
           <span aria-hidden>·</span>
@@ -465,7 +489,7 @@ function Auth({ onDone, onBack, entering, gate }: { onDone: () => void; onBack: 
           >
             <input className="input" type="email" placeholder="Your email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required aria-label="Email" />
             <button className="btn btn--lg btn--block" disabled={busy}>
-              <Mail size={20} /> {gate ? gate.nextLabel : 'Email me a code'}
+              <Mail size={20} /> Email me a code
             </button>
             <button type="button" className="linkbtn" onClick={() => setStep('password')}>
               Use a password instead
@@ -580,7 +604,7 @@ function Auth({ onDone, onBack, entering, gate }: { onDone: () => void; onBack: 
           </p>
         )}
         <button className="linkbtn auth__back" onClick={onBack}>
-          <ArrowLeft size={14} style={{ verticalAlign: '-2px' }} /> {gate ? 'Back to the map' : 'Back'}
+          <ArrowLeft size={14} style={{ verticalAlign: '-2px' }} /> {gate ? 'Back to the start' : 'Back'}
         </button>
       </motion.div>
     </main>

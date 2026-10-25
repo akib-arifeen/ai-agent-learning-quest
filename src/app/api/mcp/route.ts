@@ -195,8 +195,10 @@ const mcpAuthed = withMcpAuth(
 async function authed(req: Request): Promise<Response> {
   const res = await mcpAuthed(req)
   if (res.status !== 401) return res
-  const presented = /^bearer\s+\S+/i.test(req.headers.get('authorization') || '')
-  if (!presented) return res
+  // Same parse as mcp-handler: one space, then the token. A missing header, another scheme
+  // or a malformed line is "no authorization", never "invalid token".
+  const [type, token] = (req.headers.get('authorization') || '').split(' ')
+  if (type?.toLowerCase() !== 'bearer' || !token) return res
   const metadata = `${getPublicOrigin(req)}/.well-known/oauth-protected-resource`
   const headers = new Headers(res.headers)
   headers.set('WWW-Authenticate', `Bearer error="invalid_token", error_description="Invalid or expired token", resource_metadata="${metadata}"`)

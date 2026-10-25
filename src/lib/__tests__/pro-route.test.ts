@@ -103,6 +103,16 @@ describe('MCP route auth', () => {
     clientInfo: { name: 'test', version: '1.0.0' },
   }
 
+  /** POST with a literal Authorization line, to probe exactly how the header is parsed. */
+  const withAuth = (authorization: string) =>
+    POST(
+      new Request(URL_, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: authorization },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 900, method: 'initialize', params: init }),
+      }),
+    )
+
   it('returns 401 with no token, saying one is missing', async () => {
     const res = await rpc('initialize', init, null)
     expect(res.status).toBe(401)
@@ -117,6 +127,22 @@ describe('MCP route auth', () => {
     const challenge = res.headers.get('www-authenticate') || ''
     expect(challenge).toContain('error_description="Invalid or expired token"')
     expect(challenge).toContain('resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"')
+    expect(db.getLearner).not.toHaveBeenCalled()
+  })
+  it('treats a lower-case bearer scheme as a presented token', async () => {
+    const res = await withAuth('bearer qst_not_a_real_token_0000')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'Invalid or expired token' })
+    expect(db.getLearner).not.toHaveBeenCalled()
+  })
+  it('keeps malformed Authorization lines as "no authorization provided"', async () => {
+    // mcp-handler splits on exactly one space and needs a non-empty token, so none of these
+    // presents a token: they must not be reported as an expired one.
+    for (const header of ['Bearer   qst_not_a_real_token_0000', 'Bearer\tqst_not_a_real_token_0000', 'Basic abc', 'Bearer']) {
+      const res = await withAuth(header)
+      expect(res.status, header).toBe(401)
+      expect(await res.json(), header).toEqual({ error: 'invalid_token', error_description: 'No authorization provided' })
+    }
     expect(db.getLearner).not.toHaveBeenCalled()
   })
   it('challenges with a resource_metadata URL that serves this resource', async () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import McpDocs from '@/components/McpDocs'
+import { publicOrigin } from '@/lib/public-origin'
 
 export const metadata: Metadata = { title: 'Connect your agent' }
 
@@ -9,7 +10,5 @@ export const dynamic = 'force-dynamic'
 
 export default async function McpPage() {
   const h = await headers()
-  const host = (h.get('x-forwarded-host') || h.get('host') || 'localhost:3000').replace(/\/$/, '')
-  const proto = h.get('x-forwarded-proto') || (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? 'http' : 'https')
-  return <McpDocs origin={`${proto}://${host}`} />
+  return <McpDocs origin={publicOrigin(h, process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')} />
 }

@@ -15,6 +15,11 @@ describe('marketing landing', () => {
     expect(html).toContain('Terms of use')
   })
 
+  it('points at the public MCP guide without a sign-in gate', () => {
+    expect(html).toContain('href="/mcp"')
+    expect(html).toContain('public MCP setup guide')
+  })
+
   it('says the course is free with no paid ceiling', () => {
     expect(html).toContain('no paid tiers')
     expect(html).toContain('no ceiling')

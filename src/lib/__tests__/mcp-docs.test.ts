@@ -26,7 +26,9 @@ describe('public MCP setup guide', () => {
 
   it('gives security guidance and links to the policies', () => {
     expect(html).toContain('Treat the token like a password')
-    expect(html).toContain('Making a new token stops the old one')
+    expect(html).toContain('one connection token per learner')
+    expect(html).toContain('revokes the old token immediately')
+    expect(html).toContain('rotate it in Quest')
     expect(html).toContain('href="/privacy"')
     expect(html).toContain('href="/terms"')
   })

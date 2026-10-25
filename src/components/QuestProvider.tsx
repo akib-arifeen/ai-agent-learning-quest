@@ -58,8 +58,11 @@ export default function QuestProvider({ children }: { children: React.ReactNode 
   // the real not-found page instead of being hidden behind the landing.
   const path = usePathname()
   const entry = entryFor(path)
+  // One gate object per path, so `SignIn`'s gate-change effect runs only when the route
+  // really changes to or from a gated page.
+  const gate = useMemo(() => (entry === 'gate' ? gateFor(path) : null), [entry, path])
   if (entry === 'public' || entry === 'notfound') return <>{children}</>
-  return <SignedInApp gate={entry === 'gate' ? gateFor(path) : null}>{children}</SignedInApp>
+  return <SignedInApp gate={gate}>{children}</SignedInApp>
 }
 
 /** Everything behind sign-in: state, writes, celebrations, the coach. */

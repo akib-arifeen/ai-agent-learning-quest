@@ -34,7 +34,7 @@ describe('gateFor', () => {
   it('words the gate for the page the learner asked for and keeps that path', () => {
     expect(gateFor('/guide')).toMatchObject({ path: '/guide', title: 'Sign in to open the guide', nextLabel: 'Sign in and open the guide' })
     expect(gateFor('/pro')).toMatchObject({ path: '/pro', title: 'Sign in to start the pro track' })
-    expect(gateFor('/pro/connect')).toMatchObject({ path: '/pro/connect', title: 'Sign in to connect your agent' })
+    expect(gateFor('/pro/connect').title).toBe('Sign in to open this level')
     expect(gateFor('/pro/p1').title).toBe('Sign in to open this level')
     expect(gateFor('/quest/t1').title).toBe('Sign in to open this quest')
     expect(gateFor('/profile').title).toBe('Sign in to keep going')

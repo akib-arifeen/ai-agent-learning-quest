@@ -19,7 +19,7 @@ export type Gate = {
 
 const PUBLIC = new Set(['/privacy', '/terms', '/mcp'])
 
-const GATED = new Set(['/guide', '/pro', '/pro/connect', '/profile', '/schedule', '/trophies', '/mentor'])
+const GATED = new Set(['/guide', '/pro', '/profile', '/schedule', '/trophies', '/mentor'])
 
 /** Trim the trailing slash and the query/hash, keeping the root as "/". */
 export function normalizePath(pathname: string): string {
@@ -59,16 +59,6 @@ export function gateFor(pathname: string): Gate {
       body: 'Nine levels on how professionals work with an AI coding agent. Your own agent sends the proof over MCP.',
       bubble: 'Sign in first — then we’ll connect your agent.',
       nextLabel: 'Sign in and open the pro track',
-    }
-  }
-
-  if (path === '/pro/connect') {
-    return {
-      path,
-      title: 'Sign in to connect your agent',
-      body: 'A connection token belongs to your account, so sign in before you copy one into your agent’s settings.',
-      bubble: 'Sign in first — then we’ll connect your agent.',
-      nextLabel: 'Sign in and connect your agent',
     }
   }
 

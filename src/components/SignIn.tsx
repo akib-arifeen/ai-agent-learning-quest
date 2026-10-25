@@ -1,8 +1,12 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Camera, Check, Compass, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { Gate } from '@/lib/entry'
+import { GOOGLE_BUTTON_LABEL, GOOGLE_BUTTON_OPTIONS, GOOGLE_GSI_SRC } from '@/lib/google'
 import { toolOf } from '@/lib/tools'
 import { confetti } from './Celebrate'
 import Spark, { type Mood } from './Spark'
@@ -29,19 +33,29 @@ const STEPS = [
   { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark coaches; you write the prompts.' },
 ]
 
+// The real map, level by level. Enough to see the shape of the course without a wall of text.
+const SYLLABUS = [
+  { level: 'Warm-ups', blurb: 'Two tiny builds that make the agent feel like a creative partner.', quests: ['Your Name in Stardust', 'Desk Pet'] },
+  { level: 'Your own files', blurb: 'Your art, your music and your story, brought into the browser.', quests: ['Living Poster', 'Beat Cut', 'Choose-Your-Own-Adventure'] },
+  { level: 'Creative tools', blurb: 'The agent writes the script; you run it in the big apps.', quests: ['Staircase to Nowhere', 'Haunted Forest'] },
+  { level: 'Projects', blurb: 'Multi-day builds that end up online with your name on them.', quests: ['Portfolio Site', 'Blender → Web 360° Turntable', 'Capstone: Browser Game on itch.io'] },
+]
+
 const WORKS_WITH = ['kilo', 'opencode', 'claude-code', 'cursor', 'copilot']
 
 const TAKEOVER_SIZE = 220
 
 
 /**
- * The front door, in three beats: the landing (one big "Start learning"), Spark's
- * takeover (it hops to the middle, beams, and zooms until it fills the screen), then the
- * sign-in card with Spark perched on top — Google in one tap, or email.
+ * The front door. On `/` it runs in three beats: the landing (one big "Start learning"),
+ * Spark's takeover (it hops to the middle, beams, and zooms until it fills the screen),
+ * then the sign-in card with Spark perched on top. On an app path it skips the marketing
+ * and opens the card directly, worded for the page the learner asked for.
  */
-export default function SignIn({ onDone }: { onDone: () => void }) {
+export default function SignIn({ onDone, gate }: { onDone: () => void; gate?: Gate }) {
+  const router = useRouter()
   const reduce = useReducedMotion()
-  const [phase, setPhase] = useState<'hero' | 'takeover' | 'auth'>('hero')
+  const [phase, setPhase] = useState<'hero' | 'takeover' | 'auth'>(gate ? 'auth' : 'hero')
   const [from, setFrom] = useState({ x: 0, y: 0 })
 
   // Start learning → Spark takes over the screen, then the sign-in card.
@@ -53,9 +67,15 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
     setTimeout(() => confetti(false, { x: 0.5, y: 0.5 }), 560)
   }
 
+  // A gate belongs to a real page: "Back" goes to the map, not back to the marketing pitch.
+  function back() {
+    if (gate) return router.push('/')
+    setPhase('hero')
+  }
+
   return (
     <>
-      {phase === 'hero' ? <Landing onStart={start} /> : <Auth onDone={onDone} onBack={() => setPhase('hero')} entering={phase === 'takeover'} />}
+      {phase === 'hero' ? <Landing onStart={start} /> : <Auth gate={gate} onDone={onDone} onBack={back} entering={phase === 'takeover'} />}
 
       <AnimatePresence>
         {phase === 'takeover' && (
@@ -79,7 +99,7 @@ export default function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 /** The landing: what this is, a taste of the map, and one big button. */
-function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
+export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
   return (
     <main className="signin">
       <motion.section className="signin__copy" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
@@ -113,7 +133,13 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
           ))}
           <span className="muted">and more</span>
         </div>
-        <p className="signin__fine">Free to start with Kilo Code or OpenCode. Sign in with Google or email on the next step. Your progress saves, and you stay signed in.</p>
+        <p className="signin__fine">The quest is free from Base Camp to the final project — no paid tiers, no locked quests, no ceiling. Bring a free tool (Kilo Code or OpenCode) or one you already pay for. Sign in with Google or email; your progress saves, and you stay signed in.</p>
+        <p className="signin__fine">Forgot your password? Ask your mentor — they can reset it for you. There is no self-serve reset email.</p>
+        <p className="signin__legal">
+          <Link href="/privacy">Privacy</Link>
+          <span aria-hidden>·</span>
+          <Link href="/terms">Terms of use</Link>
+        </p>
       </motion.section>
 
       <div className="signin__art" aria-hidden>
@@ -176,8 +202,10 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
         </div>
       </div>
 
-      <section className="soon" aria-label="How it works">
-        <span className="mono muted">How it works</span>
+      <section className="soon" aria-labelledby="how-h">
+        <h2 id="how-h" className="soon__h">
+          How it works
+        </h2>
         <div className="soon__grid">
           {STEPS.map((x, i) => (
             <motion.div
@@ -190,12 +218,29 @@ function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void }) {
               <span className="soon__dot" data-tone={['cyan', 'mint', 'lav'][i]}>
                 {i + 1}
               </span>
-              <b>{x.title}</b>
+              <h3>{x.title}</h3>
               <p>{x.body}</p>
             </motion.div>
           ))}
         </div>
         <p className="soon__later muted">Coming soon: quests generated around your goal, and picture walkthroughs for your exact tool.</p>
+      </section>
+
+      <section className="soon" aria-labelledby="syllabus-h">
+        <h2 id="syllabus-h" className="soon__h">
+          What you build
+        </h2>
+        <p className="soon__later muted">Base Camp plus ten quests. Each has a main build and two swaps, so it fits your tool and your taste.</p>
+        <div className="soon__grid">
+          {SYLLABUS.map((g) => (
+            <div key={g.level} className="soon__card">
+              <h3>{g.level}</h3>
+              <p>{g.blurb}</p>
+              <p className="soon__quests">{g.quests.join(' · ')}</p>
+            </div>
+          ))}
+        </div>
+        <p className="soon__later muted">After that, an optional Pro track: nine levels on planning, rules files, MCP, hooks, subagents and shipping safely — with your own agent sending the proof.</p>
       </section>
     </main>
   )
@@ -214,12 +259,12 @@ declare global {
   }
 }
 
-/** Load Google's "Sign in with Google" script once. */
+/** Load Google's "Sign in with Google" script once, in English. */
 const loadGoogle = () =>
   new Promise<void>((resolve, reject) => {
     if (window.google?.accounts?.id) return resolve()
     const s = document.createElement('script')
-    s.src = 'https://accounts.google.com/gsi/client'
+    s.src = GOOGLE_GSI_SRC
     s.async = true
     s.onload = () => resolve()
     s.onerror = () => reject(new Error('Google sign-in couldn’t load'))
@@ -242,13 +287,12 @@ type Step = 'email' | 'code' | 'name' | 'password'
  * thinks while we wait, and cheers when you're in. Google is Google's own button; email
  * sends a 6-digit code (or uses a password when codes aren't switched on).
  */
-function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => void; entering: boolean }) {
+function Auth({ onDone, onBack, entering, gate }: { onDone: () => void; onBack: () => void; entering: boolean; gate?: Gate }) {
   const [opts, setOpts] = useState<{ google: string | null; otp: boolean } | null>(null)
   const [step, setStep] = useState<Step>('email')
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [note, setNote] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -298,7 +342,7 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
             }
           },
         })
-        window.google.accounts.id.renderButton(gbtn.current, { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', logo_alignment: 'center', width: Math.min(360, gbtn.current.offsetWidth || 360) })
+        window.google.accounts.id.renderButton(gbtn.current, { ...GOOGLE_BUTTON_OPTIONS, width: Math.min(360, gbtn.current.offsetWidth || 360) })
       })
       .catch(() => setErr('Google sign-in couldn’t load — try email instead.'))
     return () => {
@@ -325,7 +369,6 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
   /** Run one sign-in action with busy/error handling. */
   async function run(fn: () => Promise<void>) {
     setErr('')
-    setNote('')
     setBusy(true)
     try {
       await fn()
@@ -370,7 +413,9 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
             ? 'Ooh, a new friend! What should I call you?'
             : step === 'password' && pwFocus && !show
               ? 'I’m not looking, promise!'
-              : 'Yay! Let’s save your progress so you never lose a star.'
+              : gate
+                ? gate.bubble
+                : 'Yay! Let’s save your progress so you never lose a star.'
 
   return (
     <main className="auth">
@@ -398,11 +443,12 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
           </AnimatePresence>
         </div>
 
-        <h1>{step === 'name' ? 'Nice to meet you!' : 'Let’s get you in'}</h1>
+        <h1>{step === 'name' ? 'Nice to meet you!' : gate ? gate.title : 'Let’s get you in'}</h1>
+        {gate && step !== 'name' && <p className="auth__gate">{gate.body}</p>}
 
         {opts?.google && (step === 'email' || step === 'password') && (
           <>
-            <div className="gsi" ref={gbtn} />
+            <div className="gsi" ref={gbtn} role="group" aria-label={GOOGLE_BUTTON_LABEL} lang="en" />
             <div className="or">
               <span>or</span>
             </div>
@@ -419,7 +465,7 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
           >
             <input className="input" type="email" placeholder="Your email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required aria-label="Email" />
             <button className="btn btn--lg btn--block" disabled={busy}>
-              <Mail size={20} /> Email me a code
+              <Mail size={20} /> {gate ? gate.nextLabel : 'Email me a code'}
             </button>
             <button type="button" className="linkbtn" onClick={() => setStep('password')}>
               Use a password instead
@@ -511,18 +557,13 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
               </button>
             </div>
             <button className="btn btn--lg btn--block" disabled={busy}>
-              {mode === 'up' ? 'Create my account' : 'Sign in'}
+              {mode === 'up' ? 'Create my account' : gate ? gate.nextLabel : 'Sign in'}
             </button>
-            {opts?.otp ? (
+            {mode === 'in' && <p className="signin__fine">Forgot your password? Ask your mentor — they can reset it for you. There is no self-serve reset email.</p>}
+            {opts?.otp && (
               <button type="button" className="linkbtn" onClick={() => setStep('email')}>
-                Forgot it? Get an email code instead
+                Sign in with an email code instead
               </button>
-            ) : (
-              mode === 'in' && (
-                <button type="button" className="linkbtn" onClick={() => setNote('Ask your mentor — they can reset it for you from Mentor HQ.')}>
-                  Forgot password?
-                </button>
-              )
             )}
           </form>
         )}
@@ -532,10 +573,14 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
             {err}
           </p>
         )}
-        {note && <p className="signin__note">{note}</p>}
         <p className="signin__fine">You’ll stay signed in on this device.</p>
+        {gate && (
+          <p className="signin__fine">
+            Connecting your own agent? The <Link href="/mcp" className="linkbtn">MCP setup guide</Link> is public and needs no sign-in.
+          </p>
+        )}
         <button className="linkbtn auth__back" onClick={onBack}>
-          <ArrowLeft size={14} style={{ verticalAlign: '-2px' }} /> Back
+          <ArrowLeft size={14} style={{ verticalAlign: '-2px' }} /> {gate ? 'Back to the map' : 'Back'}
         </button>
       </motion.div>
     </main>

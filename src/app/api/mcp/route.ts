@@ -175,7 +175,7 @@ const handler = createMcpHandler(
   { serverInfo: { name: 'kiki-quest', version: '1.0.0' } },
 )
 
-const authed = withMcpAuth(
+const mcpAuthed = withMcpAuth(
   handler,
   async (_req, bearer) => {
     if (!bearer) return undefined
@@ -186,5 +186,21 @@ const authed = withMcpAuth(
   },
   { required: true },
 )
+
+/**
+ * The library answers a missing token and an unrecognised one with the same 401. Both
+ * still fail closed, but the body and challenge now say which happened, so a client can
+ * tell "add a token" from "replace the token".
+ */
+async function authed(req: Request): Promise<Response> {
+  const res = await mcpAuthed(req)
+  if (res.status !== 401) return res
+  const presented = /^bearer\s+\S+/i.test(req.headers.get('authorization') || '')
+  if (!presented) return res
+  const metadata = `${getPublicOrigin(req)}/.well-known/oauth-protected-resource`
+  const headers = new Headers(res.headers)
+  headers.set('WWW-Authenticate', `Bearer error="invalid_token", error_description="Invalid or expired token", resource_metadata="${metadata}"`)
+  return new Response(JSON.stringify({ error: 'invalid_token', error_description: 'Invalid or expired token' }), { status: 401, headers })
+}
 
 export { authed as GET, authed as POST }

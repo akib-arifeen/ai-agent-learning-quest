@@ -14,7 +14,7 @@ describe('OAuth protected resource metadata', () => {
     expect(body).toEqual({
       resource: 'https://quest.example.com/api/mcp',
       resource_name: 'Creative AI Agent Quest MCP',
-      resource_documentation: 'https://quest.example.com/pro',
+      resource_documentation: 'https://quest.example.com/mcp',
       bearer_methods_supported: ['header'],
     })
     expect(body).not.toHaveProperty('authorization_servers')
@@ -29,7 +29,7 @@ describe('OAuth protected resource metadata', () => {
     )
     const body = await res.json()
     expect(body.resource).toBe('https://creative-ai-agent-quest.vercel.app/api/mcp')
-    expect(body.resource_documentation).toBe('https://creative-ai-agent-quest.vercel.app/pro')
+    expect(body.resource_documentation).toBe('https://creative-ai-agent-quest.vercel.app/mcp')
   })
 
   it('returns no token, key or other secret-looking value', async () => {

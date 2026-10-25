@@ -103,11 +103,21 @@ describe('MCP route auth', () => {
     clientInfo: { name: 'test', version: '1.0.0' },
   }
 
-  it('returns 401 with no token', async () => {
-    expect((await rpc('initialize', init, null)).status).toBe(401)
+  it('returns 401 with no token, saying one is missing', async () => {
+    const res = await rpc('initialize', init, null)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'No authorization provided' })
+    expect(res.headers.get('www-authenticate')).toContain('resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"')
+    expect(db.getLearner).not.toHaveBeenCalled()
   })
-  it('returns 401 with a bad token', async () => {
-    expect((await rpc('initialize', init, 'qst_not_a_real_token_0000')).status).toBe(401)
+  it('returns 401 with a bad token, saying the token is invalid', async () => {
+    const res = await rpc('initialize', init, 'qst_not_a_real_token_0000')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'Invalid or expired token' })
+    const challenge = res.headers.get('www-authenticate') || ''
+    expect(challenge).toContain('error_description="Invalid or expired token"')
+    expect(challenge).toContain('resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"')
+    expect(db.getLearner).not.toHaveBeenCalled()
   })
   it('challenges with a resource_metadata URL that serves this resource', async () => {
     const res = await rpc('initialize', init, null)

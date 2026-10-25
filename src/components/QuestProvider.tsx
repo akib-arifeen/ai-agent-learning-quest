@@ -3,6 +3,7 @@
 import { MotionConfig } from 'motion/react'
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { type Gate, entryFor, gateFor } from '@/lib/entry'
 import { type ProgressRow, type QuestState, localDay, summarize, withPace } from '@/lib/game'
 import { EMPTY_PROFILE, type Profile, type ProfilePatch, needsOnboarding, setupOf } from '@/lib/profile'
 import type { Setup } from '@/lib/tools'
@@ -53,14 +54,16 @@ export const useQuest = () => {
  * fire the +XP pops, badge unlocks and level-up moments.
  */
 export default function QuestProvider({ children }: { children: React.ReactNode }) {
-  // Public pages (the privacy note and terms Google links to) skip sign-in entirely.
+  // The policy pages and the public MCP guide skip sign-in entirely; unknown paths reach
+  // the real not-found page instead of being hidden behind the landing.
   const path = usePathname()
-  if (path === '/privacy' || path === '/terms') return <>{children}</>
-  return <SignedInApp>{children}</SignedInApp>
+  const entry = entryFor(path)
+  if (entry === 'public' || entry === 'notfound') return <>{children}</>
+  return <SignedInApp gate={entry === 'gate' ? gateFor(path) : null}>{children}</SignedInApp>
 }
 
 /** Everything behind sign-in: state, writes, celebrations, the coach. */
-function SignedInApp({ children }: { children: React.ReactNode }) {
+function SignedInApp({ children, gate }: { children: React.ReactNode; gate: Gate | null }) {
   const [state, setState] = useState<QuestState | null>(null)
   const [failed, setFailed] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
@@ -283,6 +286,7 @@ function SignedInApp({ children }: { children: React.ReactNode }) {
   if (signedOut)
     return (
       <SignIn
+        gate={gate ?? undefined}
         onDone={() => {
           prev.current = null
           setSignedOut(false)

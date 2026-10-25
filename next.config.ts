@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // The connect panel lives on the pro track now; the old URL stays a working link.
+  async redirects() {
+    return [{ source: '/pro/connect', destination: '/pro#connect', permanent: false }]
+  },
+}
 
-export default nextConfig;
+export default nextConfig

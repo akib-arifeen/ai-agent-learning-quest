@@ -24,6 +24,23 @@ Sign-in is all in-house (no auth service, no quota): **Google** (Google's own bu
 
 Schedule rule: one sitting per day from the learner's first sign-in. Marking a day busy pushes the plan back a day and protects the streak.
 
+## Connect an agent over MCP
+
+The pro track is driven by the learner's own agent over MCP (streamable HTTP) at
+`https://creative-ai-agent-quest.vercel.app/api/mcp`.
+
+1. Sign in, open `/pro`, and choose **Create my token**.
+2. Put it in the agent's MCP config as `Authorization: Bearer <token>`. The token is shown once
+   and stored hashed; making a new one stops the old one immediately.
+3. Ask the agent to call `quest_whoami` first, then `quest_get_task`.
+
+This is a manual bearer token, not an OAuth grant. The app has no OAuth authorization server: no
+authorization endpoint, OAuth token endpoint, dynamic client registration or scopes. An MCP client
+that only supports OAuth discovery cannot connect on its own. `/.well-known/oauth-protected-resource`
+publishes RFC 9728 metadata for the resource and its setup page, and deliberately omits
+`authorization_servers` and `scopes_supported` because there is nothing to advertise. Never
+commit a token or paste it anywhere public.
+
 ## Run locally
 
 ```bash

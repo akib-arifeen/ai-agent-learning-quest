@@ -114,13 +114,3 @@ export async function verifyGoogleToken(credential: string): Promise<SessionUser
     verified: true,
   }
 }
-
-/** Emails that get the mentor view (comma-separated ADMIN_EMAILS) — only after a verified sign-in. */
-export const isMentor = (email: string | null | undefined, verified: boolean) =>
-  verified &&
-  !!email &&
-  (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.toLowerCase())

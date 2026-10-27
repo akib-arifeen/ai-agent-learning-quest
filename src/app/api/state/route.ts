@@ -11,5 +11,5 @@ export async function GET(req: Request) {
   const u = await me(true)
   if (!u) return fail('Sign in first.', 401)
   const learner = await touchUser(u, new URL(req.url).searchParams.get('today') || undefined)
-  return json({ ...(await loadState(learner)), mentor: u.mentor })
+  return json(await loadState(learner))
 }

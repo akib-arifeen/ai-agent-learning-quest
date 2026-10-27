@@ -7,7 +7,7 @@
 
 import crypto from 'crypto'
 import postgres from 'postgres'
-import type { Activity, Checkin, Cheer, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
+import type { Activity, Checkin, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
 import type { CheckResult, EvidenceItem, Submission } from './pro'
 import type { Profile, ProfilePatch } from './profile'
 import { hmac } from './session'
@@ -210,7 +210,7 @@ export async function touchUser(u: { id: string; email: string; name: string; im
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
   const id = user.id
-  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile, evidence, token, pace] = await Promise.all([
+  const [progress, busy, checkins, activity, days, msgs, files, profile, evidence, token, pace] = await Promise.all([
     sql`select * from quest_progress where user_id = ${id}`,
     sql`select to_char(day, 'YYYY-MM-DD') as day from quest_busy where user_id = ${id} order by day`,
     sql`select id, task_id, message, image is not null as has_image, created_at from quest_checkins where user_id = ${id} order by id desc limit 200`,
@@ -221,7 +221,6 @@ export async function loadState(user: Learner): Promise<QuestState> {
     sql`select min(at) as at from quest_activity
         where user_id = ${id} and kind in ('step', 'sitting', 'complete', 'checkin', 'upload', 'evidence')
         group by floor(extract(epoch from at) / 900) order by 1`,
-    sql`select id, from_name, message, created_at, seen_at from quest_cheers where user_id = ${id} order by id desc limit 20`,
     sql`select count(*)::int as n from quest_messages where user_id = ${id} and role = 'user'`,
     sql`select id, task_id, url, name, content_type, size, created_at from quest_files where user_id = ${id} order by id desc limit 500`,
     sql`select * from quest_profiles where user_id = ${id}`,
@@ -238,7 +237,6 @@ export async function loadState(user: Learner): Promise<QuestState> {
     checkins: checkins.map((r) => ({ ...r, created_at: iso(r.created_at) })) as unknown as Checkin[],
     activity: activity.map((r) => ({ ...r, at: iso(r.at) })) as unknown as Activity[],
     days: days.map((r) => iso(r.at) || ''),
-    cheers: cheers.map((r) => ({ ...r, created_at: iso(r.created_at), seen_at: iso(r.seen_at) })) as unknown as Cheer[],
     coachMessages: Number(msgs[0]?.n || 0),
     files: files.map((r) => ({ ...r, id: Number(r.id), size: Number(r.size), created_at: iso(r.created_at) })) as unknown as QuestFile[],
     profile: profile[0] ? toProfile(profile[0]) : null,
@@ -351,7 +349,7 @@ export async function toggleStep(userId: string, taskId: string, stepId: string,
   return toProgress(rows[0])
 }
 
-/** Append to the activity log (feeds the streak and the mentor's feed). */
+/** Append to the activity log (feeds the streak and the learner's activity feed). */
 export async function logActivity(userId: string, kind: string, taskId: string | null, detail: string | null = null) {
   await sql`insert into quest_activity (user_id, kind, task_id, detail) values (${userId}, ${kind}, ${taskId}, ${detail})`
 }
@@ -370,12 +368,10 @@ export async function addCheckin(userId: string, taskId: string, message: string
   return Number(rows[0].id)
 }
 
-/** A check-in's screenshot as a data URL — only for its owner, or for a mentor. */
-export async function checkinImage(id: number, userId: string, mentor: boolean): Promise<string | null> {
+/** A check-in's screenshot as a data URL — only for its owner. */
+export async function checkinImage(id: number, userId: string): Promise<string | null> {
   await ensureSchema()
-  const rows = mentor
-    ? await sql`select image from quest_checkins where id = ${id}`
-    : await sql`select image from quest_checkins where id = ${id} and user_id = ${userId}`
+  const rows = await sql`select image from quest_checkins where id = ${id} and user_id = ${userId}`
   return (rows[0]?.image as string) || null
 }
 
@@ -393,24 +389,6 @@ export async function addMessage(userId: string, taskId: string, role: 'user' | 
   await sql`insert into quest_messages (user_id, task_id, role, content) values (${userId}, ${taskId}, ${role}, ${content})`
 }
 
-/** A learner's most recent chat messages (mentor view), oldest first. */
-export async function recentMessages(userId: string, limit = 400) {
-  await ensureSchema()
-  const rows = await sql`
-    select id, task_id, role, content, created_at from quest_messages where user_id = ${userId}
-    order by id desc limit ${limit}`
-  return rows.reverse().map((r) => ({ id: Number(r.id), task_id: String(r.task_id), role: String(r.role), content: String(r.content), created_at: iso(r.created_at) }))
-}
-
-/** Everyone who has signed in (mentor view), most recently active first. */
-export async function listLearners(): Promise<Learner[]> {
-  await ensureSchema()
-  const rows = await sql`
-    select id, email, name, image, to_char(start_date, 'YYYY-MM-DD') as start_date, last_seen
-    from quest_users order by last_seen desc limit 200`
-  return rows.map((r) => ({ id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || '', lastSeen: iso(r.last_seen) || '' }))
-}
-
 /** One learner by id. */
 export async function getLearner(id: string): Promise<Learner | null> {
   await ensureSchema()
@@ -418,17 +396,6 @@ export async function getLearner(id: string): Promise<Learner | null> {
     select id, email, name, image, to_char(start_date, 'YYYY-MM-DD') as start_date, last_seen from quest_users where id = ${id}`
   const r = rows[0]
   return r ? { id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || '', lastSeen: iso(r.last_seen) || '' } : null
-}
-
-/** Mentor sends a learner a cheer for their home screen. */
-export async function addCheer(userId: string, fromName: string, message: string) {
-  await ensureSchema()
-  await sql`insert into quest_cheers (user_id, from_name, message) values (${userId}, ${fromName}, ${message})`
-}
-
-/** The learner dismisses a cheer. */
-export async function seeCheer(userId: string, id: number) {
-  await sql`update quest_cheers set seen_at = now() where id = ${id} and user_id = ${userId} and seen_at is null`
 }
 
 /** Record a file a learner uploaded (the bytes live in Blob storage; this is the index). */
@@ -460,14 +427,6 @@ export async function createPassword(email: string, hash: string): Promise<boole
   await ensureSchema()
   const rows = await sql`insert into quest_passwords (email, hash) values (${email}, ${hash}) on conflict do nothing returning email`
   return rows.length > 0
-}
-
-/** Replace an email account's password (mentor reset). */
-export async function setPassword(email: string, hash: string) {
-  await ensureSchema()
-  await sql`
-    insert into quest_passwords (email, hash) values (${email}, ${hash})
-    on conflict (email) do update set hash = excluded.hash, updated_at = now()`
 }
 
 /** Store (or replace) the pending sign-in code for an email. */

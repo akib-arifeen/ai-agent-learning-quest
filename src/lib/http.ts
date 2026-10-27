@@ -4,14 +4,13 @@
  * ungated route would let anyone spend the coach's LLM quota or touch someone's data.
  */
 
-import { isMentor, readSession } from './session'
+import { readSession } from './session'
 
-export type Me = { id: string; email: string; name: string; image: string | null; verified: boolean; mentor: boolean }
+export type Me = { id: string; email: string; name: string; image: string | null; verified: boolean }
 
 /** The signed-in learner (Google or email account), or null. `roll` keeps the cookie fresh. */
 export async function me(roll = false): Promise<Me | null> {
-  const u = await readSession(roll)
-  return u ? { ...u, mentor: isMentor(u.email, u.verified) } : null
+  return readSession(roll)
 }
 
 /** For writes: the caller must still be the account the page was loaded for (two tabs, two accounts). */

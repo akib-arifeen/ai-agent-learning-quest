@@ -5,7 +5,7 @@ import { questById } from '@/lib/quest'
 // Screenshots are downscaled to JPEG in the browser first; this caps what's stored.
 const MAX_IMAGE_CHARS = 1_600_000
 
-/** Post a check-in for the mentor: { taskId, message, image? (data:image/… URL) }. */
+/** Post a private check-in: { taskId, message, image? (data:image/… URL) }. */
 export async function POST(req: Request) {
   const u = await me()
   if (!u) return fail('Sign in first.', 401)
@@ -24,12 +24,12 @@ export async function POST(req: Request) {
   return json({ id })
 }
 
-/** A check-in's screenshot as an image: ?id= — its owner or a mentor only. */
+/** A check-in's screenshot as an image: ?id= — its owner only. */
 export async function GET(req: Request) {
   const u = await me()
   if (!u) return fail('Sign in first.', 401)
   const id = Number(new URL(req.url).searchParams.get('id'))
-  const data = Number.isSafeInteger(id) && id > 0 ? await checkinImage(id, u.id, u.mentor) : null
+  const data = Number.isSafeInteger(id) && id > 0 ? await checkinImage(id, u.id) : null
   const m = data?.match(/^data:(image\/[a-z]+);base64,(.*)$/)
   if (!m) return fail('No image.', 404)
   return new Response(Buffer.from(m[2], 'base64'), {

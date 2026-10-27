@@ -22,21 +22,17 @@ export type ProgressRow = {
 export type Checkin = { id: number; task_id: string; message: string; has_image: boolean; created_at: string }
 export type Activity = { at: string; kind: string; task_id: string | null; detail?: string | null }
 export type QuestFile = { id: number; task_id: string; url: string; name: string; content_type: string; size: number; created_at: string }
-export type Cheer = { id: number; from_name: string; message: string; created_at: string; seen_at: string | null }
 export type Learner = { id: string; email: string; name: string; image: string | null; startDate: string; lastSeen: string }
 export type QuestState = {
   user: Learner
-  /** True when the viewer may open the mentor view. */
-  mentor?: boolean
   startDate: string
   progress: Record<string, ProgressRow>
   busy: string[]
   checkins: Checkin[]
-  /** Recent activity, newest first (mentor feed). */
+  /** Recent activity, newest first (the learner's own activity feed). */
   activity: Activity[]
   /** One timestamp per hour with real progress — the streak's input. */
   days: string[]
-  cheers: Cheer[]
   coachMessages: number
   /** What they uploaded for each quest — their record of what they made. */
   files: QuestFile[]

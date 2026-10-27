@@ -15,7 +15,6 @@ const state = (weekly: number | null | undefined, extra: Partial<QuestState> = {
   checkins: [],
   activity: [],
   days: [],
-  cheers: [],
   coachMessages: 0,
   files: [],
   profile: weekly === undefined ? null : { ...EMPTY_PROFILE, weekly_minutes: weekly },

@@ -119,13 +119,12 @@ const hasStarted = (s: QuestState) => Object.keys(s.progress).length > 0 || s.fi
 
 /**
  * Show the full-screen onboarding: a brand-new learner who hasn't finished or skipped it.
- * Learners who were already mid-quest when onboarding shipped get the prompt instead, and
- * so do mentors, who mustn't meet a wall on their way to Mentor HQ.
+ * Learners who were already mid-quest when onboarding shipped get the prompt instead.
  */
-export const needsOnboarding = (s: QuestState) => !s.profile?.completed_at && !s.profile?.dismissed_at && !hasStarted(s) && !s.mentor
+export const needsOnboarding = (s: QuestState) => !s.profile?.completed_at && !s.profile?.dismissed_at && !hasStarted(s)
 
 /** Show the dismissible "personalise your quest" prompt on the home screen. */
-export const showPersonalisePrompt = (s: QuestState) => !s.profile?.completed_at && !s.profile?.dismissed_at && (hasStarted(s) || !!s.mentor)
+export const showPersonalisePrompt = (s: QuestState) => !s.profile?.completed_at && !s.profile?.dismissed_at && hasStarted(s)
 
 /** The role as words: the preset label, or what they typed for "something else". */
 export const roleLabel = (p?: Profile | null) =>

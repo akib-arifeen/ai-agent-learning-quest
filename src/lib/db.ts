@@ -10,6 +10,7 @@ import postgres from 'postgres'
 import type { Activity, Checkin, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
 import type { CheckResult, EvidenceItem, Submission } from './pro'
 import type { Profile, ProfilePatch } from './profile'
+import { RECOVERY_CODE_TTL_MIN, RECOVERY_MAX_ATTEMPTS, RECOVERY_TOKEN_TTL_MIN } from './recovery'
 import { hmac } from './session'
 
 // One client per server instance. `prepare: false` because Neon's pooled URL sits
@@ -244,15 +245,6 @@ export async function getSessionVersion(userId: string): Promise<number | null> 
   return rows[0] ? Number(rows[0].session_version) : null
 }
 
-/** Invalidate every existing cookie for an account by moving it to a fresh version. */
-export async function bumpSessionVersion(userId: string): Promise<number | null> {
-  await ensureSchema()
-  const rows = await sql`
-    update quest_users set session_version = nextval('quest_session_seq')
-    where id = ${userId} returning session_version`
-  return rows[0] ? Number(rows[0].session_version) : null
-}
-
 /** Everything one learner's screens render from. */
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
@@ -462,6 +454,13 @@ export async function removeFile(userId: string, id: number): Promise<string | n
   return (rows[0]?.url as string) || null
 }
 
+/** One file's Blob URL, scoped to its owner. */
+export async function getFile(userId: string, id: number): Promise<{ url: string } | null> {
+  await ensureSchema()
+  const rows = await sql`select url from quest_files where id = ${id} and user_id = ${userId}`
+  return rows[0] ? { url: String(rows[0].url) } : null
+}
+
 /** Every Blob URL owned by these account identities (deduped, no live Blob list call). */
 export async function listAccountBlobUrls(userIds: string[]): Promise<string[]> {
   await ensureSchema()
@@ -473,9 +472,11 @@ export async function listAccountBlobUrls(userIds: string[]): Promise<string[]> 
 /**
  * Delete every database row keyed to these account identities, plus the password/OTP/
  * recovery records for the email. One transaction: a failure rolls back everything.
+ * `emailAuth: 'password'` is an unverified password-account deletion: it removes its
+ * password and recovery records but leaves the verified identity's pending OTP alone.
  * Deleting quest_users makes every old cookie fail the session-version lookup.
  */
-export async function deleteAccountData(userIds: string[], email: string): Promise<void> {
+export async function deleteAccountData(userIds: string[], email: string, emailAuth: 'all' | 'password'): Promise<void> {
   await ensureSchema()
   if (!userIds.length) return
   await sql.begin(async (tx) => {
@@ -486,7 +487,7 @@ export async function deleteAccountData(userIds: string[], email: string): Promi
     }
     await tx`delete from quest_users where id = any(${userIds})`
     await tx`delete from quest_passwords where email = ${email}`
-    await tx`delete from quest_otps where email = ${email}`
+    if (emailAuth === 'all') await tx`delete from quest_otps where email = ${email}`
     await tx`delete from quest_recovery where email = ${email}`
   })
 }
@@ -537,11 +538,11 @@ export async function deleteOtp(email: string) {
 // ───────────────────────────── password recovery ─────────────────────────────
 
 /** Store (or replace) a recovery code; old guesses stay counted for 30 minutes. */
-export async function saveRecoveryCode(email: string, codeHash: string) {
+export async function saveRecoveryCode(email: string, codeHash: string, minutes = RECOVERY_CODE_TTL_MIN) {
   await ensureSchema()
   await sql`
     insert into quest_recovery (email, code_hash, code_expires_at, token_hash, token_expires_at, attempts, created_at)
-    values (${email}, ${codeHash}, now() + interval '10 minutes', null, null, 0, now())
+    values (${email}, ${codeHash}, now() + make_interval(mins => ${minutes}), null, null, 0, now())
     on conflict (email) do update set
       code_hash = excluded.code_hash,
       code_expires_at = excluded.code_expires_at,
@@ -556,37 +557,21 @@ export async function takeRecoveryAttempt(email: string): Promise<{ codeHash: st
   await ensureSchema()
   const rows = await sql`
     update quest_recovery set attempts = attempts + 1
-    where email = ${email} and code_expires_at > now() and attempts < 5
+    where email = ${email} and code_expires_at > now() and attempts < ${RECOVERY_MAX_ATTEMPTS}
     returning code_hash`
   return rows[0] ? { codeHash: String(rows[0].code_hash) } : null
 }
 
 /** Exchange a live code for a single-use reset token. False when no code is live. */
-export async function issueRecoveryToken(email: string, tokenHash: string): Promise<boolean> {
+export async function issueRecoveryToken(email: string, tokenHash: string, minutes = RECOVERY_TOKEN_TTL_MIN): Promise<boolean> {
   await ensureSchema()
   const rows = await sql`
     update quest_recovery set
       code_hash = '', code_expires_at = null,
-      token_hash = ${tokenHash}, token_expires_at = now() + interval '15 minutes'
+      token_hash = ${tokenHash}, token_expires_at = now() + make_interval(mins => ${minutes})
     where email = ${email} and code_hash <> '' and code_expires_at > now()
     returning email`
   return rows.length > 0
-}
-
-/** Consume a reset token. The delete is the single-use guarantee: only one caller wins. */
-export async function claimRecoveryToken(email: string, tokenHash: string): Promise<boolean> {
-  await ensureSchema()
-  const rows = await sql`
-    delete from quest_recovery
-    where email = ${email} and token_hash = ${tokenHash} and token_expires_at > now()
-    returning email`
-  return rows.length > 0
-}
-
-/** Drop any pending recovery material for an email. */
-export async function deleteRecovery(email: string) {
-  await ensureSchema()
-  await sql`delete from quest_recovery where email = ${email}`
 }
 
 /**

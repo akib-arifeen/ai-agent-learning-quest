@@ -1,6 +1,7 @@
 'use client'
 
 import { Check, Copy, KeyRound, ShieldCheck } from 'lucide-react'
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Submission, proTaskById } from '@/lib/pro'
 import { toolOf } from '@/lib/tools'
@@ -222,7 +223,8 @@ export default function ConnectAgent() {
         <ShieldCheck size={18} aria-hidden />
         <span>
           Your agent sends only what a level lists: file contents and command output. Anything that looks like a key or password is removed before saving. Every
-          submission appears on its level’s page, and is not shown to another learner or another person. Checks look at the shape of your evidence; you, and Spark when you ask, can review what you sent. Nothing is shared with other people by default. It’s a learning loop, not proctoring. Never paste your token anywhere public.
+          submission appears on its level’s page, and is not shown to other learners in the app. Checks look at the shape of your evidence; you, and Spark when you ask, can review what you sent. Not shared with other learners by default; service providers process data to run the site —{' '}
+          <Link href="/privacy">see the privacy note</Link>. It’s a learning loop, not proctoring. Never paste your token anywhere public.
         </span>
       </p>
     </section>

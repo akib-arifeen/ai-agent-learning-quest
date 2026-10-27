@@ -8,6 +8,7 @@ import { hmac, normEmail } from './session'
 
 export const RECOVERY_CODE_TTL_MIN = 10
 export const RECOVERY_TOKEN_TTL_MIN = 15
+export const RECOVERY_MAX_ATTEMPTS = 5
 
 /** A keyed hash for the 6-digit code sent to an email. */
 export const hashRecoveryCode = (email: string, code: string) => hmac(`recovery:${normEmail(email)}:${code}`)

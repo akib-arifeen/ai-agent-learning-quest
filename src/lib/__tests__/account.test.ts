@@ -13,7 +13,7 @@ vi.mock('@/lib/http', () => http)
 const db = vi.hoisted(() => ({
   getPasswordHash: vi.fn<(email: string) => Promise<string | null>>(),
   listAccountBlobUrls: vi.fn<(userIds: string[]) => Promise<string[]>>(),
-  deleteAccountData: vi.fn<(userIds: string[], email: string) => Promise<void>>(),
+  deleteAccountData: vi.fn<(userIds: string[], email: string, emailAuth: 'all' | 'password') => Promise<void>>(),
 }))
 vi.mock('@/lib/db', () => db)
 
@@ -25,7 +25,10 @@ const auth = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/session', () => auth)
 
-const blob = vi.hoisted(() => ({ del: vi.fn<(urls: string[], opts: { token?: string }) => Promise<void>>() }))
+const blob = vi.hoisted(() => ({
+  del: vi.fn<(urls: string[], opts: { token?: string }) => Promise<void>>(),
+  list: vi.fn<(opts: { prefix?: string; cursor?: string; token?: string }) => Promise<{ blobs: { url: string }[]; cursor?: string; hasMore: boolean }>>(),
+}))
 vi.mock('@vercel/blob', () => blob)
 
 import { DELETE } from '@/app/api/account/route'
@@ -45,6 +48,8 @@ const request = (body: Record<string, unknown> = {}, who = 'u1') =>
     }),
   )
 
+const emptyList = async () => ({ blobs: [], hasMore: false })
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubEnv('BLOB_READ_WRITE_TOKEN', 'test-token')
@@ -57,6 +62,7 @@ beforeEach(() => {
   auth.checkPassword.mockReturnValue(true)
   auth.endSession.mockResolvedValue(undefined)
   blob.del.mockResolvedValue(undefined)
+  blob.list.mockImplementation(emptyList)
 })
 
 afterEach(() => {
@@ -69,6 +75,7 @@ describe('DELETE /api/account authorization', () => {
     const res = await request()
     expect(res.status).toBe(401)
     expect(db.listAccountBlobUrls).not.toHaveBeenCalled()
+    expect(blob.list).not.toHaveBeenCalled()
     expect(blob.del).not.toHaveBeenCalled()
     expect(db.deleteAccountData).not.toHaveBeenCalled()
     expect(auth.endSession).not.toHaveBeenCalled()
@@ -97,6 +104,7 @@ describe('DELETE /api/account confirmation', () => {
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'That password doesn’t match.' })
     expect(db.listAccountBlobUrls).not.toHaveBeenCalled()
+    expect(blob.list).not.toHaveBeenCalled()
     expect(blob.del).not.toHaveBeenCalled()
     expect(db.deleteAccountData).not.toHaveBeenCalled()
     expect(auth.endSession).not.toHaveBeenCalled()
@@ -131,30 +139,69 @@ describe('DELETE /api/account confirmation', () => {
   })
 })
 
-describe('DELETE /api/account success and partial failure', () => {
-  it('deletes Blob URLs first, then the database, then clears the cookie', async () => {
-    db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/a', 'https://blob.example/b'])
+describe('DELETE /api/account identity scope', () => {
+  it('verified sessions delete both same-email identities', async () => {
+    db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/a'])
     const res = await request({ confirm: 'DELETE MY ACCOUNT' })
-
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual({ ok: true })
-    expect(JSON.stringify(body)).not.toMatch(/password|hash|token|count/i)
     expect(db.listAccountBlobUrls).toHaveBeenCalledWith(['u1', 'u_sam@example.com', 'p_sam@example.com'])
-    expect(blob.del).toHaveBeenCalledWith(['https://blob.example/a', 'https://blob.example/b'], { token: 'test-token' })
-    expect(db.deleteAccountData).toHaveBeenCalledWith(['u1', 'u_sam@example.com', 'p_sam@example.com'], 'sam@example.com')
+    expect(db.deleteAccountData).toHaveBeenCalledWith(['u1', 'u_sam@example.com', 'p_sam@example.com'], 'sam@example.com', 'all')
+    expect(blob.list.mock.calls.map(([opts]) => opts.prefix).sort()).toEqual([
+      'quests/p_sam@example.com/',
+      'quests/u1/',
+      'quests/u_sam@example.com/',
+    ])
+  })
+
+  it('unverified password sessions delete only their own p_ identity', async () => {
+    http.me.mockResolvedValue(PASSWORD)
+    db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/p'])
+    const res = await request({ password: 'correct' }, 'p1')
+    expect(res.status).toBe(200)
+    expect(auth.checkPassword).toHaveBeenCalledWith('correct', 'stored-hash')
+    expect(db.listAccountBlobUrls).toHaveBeenCalledWith(['p1'])
+    expect(db.listAccountBlobUrls).not.toHaveBeenCalledWith(['p1', 'u_sam@example.com', 'p_sam@example.com'])
+    expect(db.deleteAccountData).toHaveBeenCalledWith(['p1'], 'sam@example.com', 'password')
+    expect(blob.list.mock.calls.map(([opts]) => opts.prefix)).toEqual(['quests/p1/'])
+    expect(blob.list.mock.calls.some(([opts]) => String(opts.prefix).startsWith('quests/u_'))).toBe(false)
+    expect(blob.del).toHaveBeenCalledWith(['https://blob.example/p'], { token: 'test-token' })
+  })
+
+  it('deduplicates a verified user id that equals the verified-email id', async () => {
+    http.me.mockResolvedValue({ ...VERIFIED, id: 'u_sam@example.com' })
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' }, 'u_sam@example.com')
+    expect(res.status).toBe(200)
+    expect(db.deleteAccountData).toHaveBeenCalledWith(['u_sam@example.com', 'p_sam@example.com'], 'sam@example.com', 'all')
+  })
+})
+
+describe('DELETE /api/account Blob handling', () => {
+  it('deletes DB URLs and orphaned prefix blobs before the database', async () => {
+    db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/a', 'https://blob.example/a'])
+    blob.list.mockImplementation(async ({ prefix }) =>
+      prefix === 'quests/u1/' ? { blobs: [{ url: 'https://blob.example/orphan' }], hasMore: false } : { blobs: [], hasMore: false },
+    )
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
+    expect(res.status).toBe(200)
+    expect(blob.del).toHaveBeenCalledWith(['https://blob.example/a', 'https://blob.example/orphan'], { token: 'test-token' })
     expect(blob.del.mock.invocationCallOrder[0]).toBeLessThan(db.deleteAccountData.mock.invocationCallOrder[0])
     expect(db.deleteAccountData.mock.invocationCallOrder[0]).toBeLessThan(auth.endSession.mock.invocationCallOrder[0])
   })
 
-  it('deduplicates a user id that already equals the verified-email id', async () => {
-    http.me.mockResolvedValue({ ...VERIFIED, id: 'u_sam@example.com' })
-    const res = await request({ confirm: 'DELETE MY ACCOUNT' }, 'u_sam@example.com')
+  it('follows Blob pagination cursors', async () => {
+    blob.list.mockImplementation(async ({ prefix, cursor }) => {
+      if (prefix !== 'quests/u1/') return { blobs: [], hasMore: false }
+      if (!cursor) return { blobs: [{ url: 'https://blob.example/one' }], cursor: 'next', hasMore: true }
+      return { blobs: [{ url: 'https://blob.example/two' }], hasMore: false }
+    })
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
     expect(res.status).toBe(200)
-    expect(db.deleteAccountData).toHaveBeenCalledWith(['u_sam@example.com', 'p_sam@example.com'], 'sam@example.com')
+    expect(blob.list).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'quests/u1/', cursor: undefined }))
+    expect(blob.list).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'quests/u1/', cursor: 'next' }))
+    expect(blob.del).toHaveBeenCalledWith(['https://blob.example/one', 'https://blob.example/two'], { token: 'test-token' })
   })
 
-  it('reports a Blob listing failure before any deletion', async () => {
+  it('reports a DB URL lookup failure before any deletion', async () => {
     db.listAccountBlobUrls.mockRejectedValueOnce(new Error('list down'))
     const res = await request({ confirm: 'DELETE MY ACCOUNT' })
     expect(res.status).toBe(502)
@@ -164,13 +211,38 @@ describe('DELETE /api/account success and partial failure', () => {
     expect(auth.endSession).not.toHaveBeenCalled()
   })
 
-  it('deletes a password account after the current password matches', async () => {
-    http.me.mockResolvedValue(PASSWORD)
-    const res = await request({ password: 'correct' }, 'p1')
+  it('reports a prefix listing failure before any deletion', async () => {
+    blob.list.mockRejectedValueOnce(new Error('prefix down'))
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ error: BLOB_ERROR })
+    expect(blob.del).not.toHaveBeenCalled()
+    expect(db.deleteAccountData).not.toHaveBeenCalled()
+    expect(auth.endSession).not.toHaveBeenCalled()
+  })
+
+  it('skips prefix listing without a token, then fails honestly if DB URLs need deletion', async () => {
+    vi.stubEnv('BLOB_READ_WRITE_TOKEN', '')
+    db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/a'])
+    blob.del.mockImplementation(async (_urls, opts) => {
+      if (!opts.token) throw new Error('no token')
+    })
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ error: BLOB_ERROR })
+    expect(blob.list).not.toHaveBeenCalled()
+    expect(db.deleteAccountData).not.toHaveBeenCalled()
+    expect(auth.endSession).not.toHaveBeenCalled()
+  })
+
+  it('does not require a Blob token or call the Blob API when there are no files', async () => {
+    vi.stubEnv('BLOB_READ_WRITE_TOKEN', '')
+    db.listAccountBlobUrls.mockResolvedValue([])
+    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
-    expect(auth.checkPassword).toHaveBeenCalledWith('correct', 'stored-hash')
-    expect(db.deleteAccountData).toHaveBeenCalledWith(['p1', 'u_sam@example.com', 'p_sam@example.com'], 'sam@example.com')
+    expect(blob.list).not.toHaveBeenCalled()
+    expect(blob.del).not.toHaveBeenCalled()
+    expect(db.deleteAccountData).toHaveBeenCalledTimes(1)
     expect(auth.endSession).toHaveBeenCalledTimes(1)
   })
 
@@ -200,16 +272,6 @@ describe('DELETE /api/account success and partial failure', () => {
     const retried = await request({ confirm: 'DELETE MY ACCOUNT' })
     expect(retried.status).toBe(200)
     expect(db.deleteAccountData).toHaveBeenCalledTimes(2)
-    expect(auth.endSession).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not require a Blob token or call del when there are no files', async () => {
-    vi.stubEnv('BLOB_READ_WRITE_TOKEN', '')
-    db.listAccountBlobUrls.mockResolvedValue([])
-    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
-    expect(res.status).toBe(200)
-    expect(blob.del).not.toHaveBeenCalled()
-    expect(db.deleteAccountData).toHaveBeenCalledTimes(1)
     expect(auth.endSession).toHaveBeenCalledTimes(1)
   })
 })

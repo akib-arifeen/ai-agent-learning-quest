@@ -45,7 +45,7 @@ The new account deletion path removes user-keyed rows in one transaction and the
 
 Uploads are removed from Vercel Blob before the database transaction. The two stores cannot share a transaction:
 
-- If Blob listing or deletion fails, the account and database rows are left intact and the route returns an honest retryable error. `del` may already have removed some objects before throwing, so the message says some files may be gone.
+- If Blob URL lookup / prefix listing or deletion fails, the account and database rows are left intact and the route returns an honest retryable error. `del` may already have removed some objects before throwing, so the message says some files may be gone.
 - If Blob deletion succeeds but the database deletion fails, the account stays active and the route returns an honest partial-failure message. Retrying repeats the idempotent Blob step and then attempts the database transaction again.
 - Only after the database transaction succeeds is the session cookie cleared and success returned.
 

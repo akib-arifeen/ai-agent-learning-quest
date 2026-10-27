@@ -480,7 +480,9 @@ function FinishModal({ open, quest: q, v, onClose }: { open: boolean; quest: Que
         <Creations taskId={q.id} compact />
         <div className="field">
           <label htmlFor="msg">Your private reflection: what did you make? What surprised you?</label>
-          <small className="muted">Only you can see this reflection.</small>
+          <small className="muted">
+            Not shown to other learners in the app. <Link href="/privacy">See how your data is handled.</Link>
+          </small>
           <textarea
             id="msg"
             maxLength={2000}

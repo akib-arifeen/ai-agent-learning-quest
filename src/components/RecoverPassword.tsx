@@ -8,7 +8,8 @@ type SessionOpts = { google: string | null; otp: boolean }
 type Step = 'email' | 'reset' | 'done'
 
 const GENERIC = 'That code doesn’t match or has expired.'
-const SENT = 'If that address has a password account, we’ve sent a 6-digit code. It expires in 10 minutes.'
+const SENT =
+  'If that address has a password account, a 6-digit code will be sent when email delivery is working. It expires in 10 minutes. No email? Check spam, then try again or use Google sign-in.'
 
 /** POST one recovery step; returns the parsed body without throwing on 4xx. */
 async function postRecovery(body: Record<string, unknown>) {

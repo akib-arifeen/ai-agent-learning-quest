@@ -18,6 +18,8 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
   const ids = [`u_packet-c-${stamp}`, `p_packet-c-${stamp}`]
   const resetEmail = `packet-c-reset-${stamp}@example.test`
   const resetIds = [`u_packet-c-reset-${stamp}`, `p_packet-c-reset-${stamp}`]
+  const sameEmail = `packet-c-same-${stamp}@example.test`
+  const sameIds = [`u_packet-c-same-${stamp}`, `p_packet-c-same-${stamp}`]
 
   beforeAll(async () => {
     db = await import('../db')
@@ -29,9 +31,10 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
     for (const [userIds, address] of [
       [ids, email],
       [resetIds, resetEmail],
+      [sameIds, sameEmail],
     ] as const) {
       try {
-        await db.deleteAccountData(userIds, address)
+        await db.deleteAccountData(userIds, address, 'all')
       } catch {
         // Best effort: the test body already fails if cleanup is the problem.
       }
@@ -62,7 +65,7 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
       await sql`insert into quest_recovery (email, code_hash, code_expires_at) values (${email}, 'synthetic', now() + interval '10 minutes')`
 
       await expect(db.listAccountBlobUrls(ids)).resolves.toEqual([`https://blob.example/${stamp}`])
-      await deleteAccountData(ids, email)
+      await deleteAccountData(ids, email, 'all')
 
       for (const table of ACCOUNT_TABLES) {
         const column = table === 'quest_users' ? 'id' : 'user_id'
@@ -75,10 +78,10 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
       }
 
       // Deleting again is harmless and still reports success.
-      await expect(deleteAccountData(ids, email)).resolves.toBeUndefined()
+      await expect(deleteAccountData(ids, email, 'all')).resolves.toBeUndefined()
     } finally {
       try {
-        await deleteAccountData(ids, email)
+        await deleteAccountData(ids, email, 'all')
       } catch {
         // Keep the original failure; the afterAll also retries.
       }
@@ -114,7 +117,50 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
       await expect(resetPasswordWithToken(resetEmail, tokenHash, 'scrypt$newer', resetIds)).resolves.toBe(false)
     } finally {
       try {
-        await deleteAccountData(resetIds, resetEmail)
+        await deleteAccountData(resetIds, resetEmail, 'all')
+      } catch {
+        // Keep the original failure; the afterAll also retries.
+      }
+    }
+  })
+
+  it('password-only deletion leaves the verified same-email identity intact', async () => {
+    if (!db) throw new Error('integration database was not loaded')
+    const { sql, deleteAccountData, getSessionVersion } = db
+    const [uId, pId] = sameIds
+    try {
+      for (const id of sameIds) {
+        await sql`insert into quest_users (id, email, name, start_date) values (${id}, ${sameEmail}, 'Synthetic', '2026-01-01')`
+      }
+      await sql`insert into quest_progress (user_id, task_id) values (${uId}, 't0'), (${pId}, 't0')`
+      await sql`insert into quest_files (user_id, task_id, url, pathname, name, content_type, size) values
+        (${uId}, 't0', ${`https://blob.example/${stamp}-u`}, ${`packet-c/${stamp}-u`}, 'u.txt', 'text/plain', 1),
+        (${pId}, 't0', ${`https://blob.example/${stamp}-p`}, ${`packet-c/${stamp}-p`}, 'p.txt', 'text/plain', 1)`
+      await sql`insert into quest_passwords (email, hash) values (${sameEmail}, 'scrypt$test')`
+      await sql`insert into quest_otps (email, code_hash, expires_at) values (${sameEmail}, 'synthetic', now() + interval '10 minutes')`
+      await sql`insert into quest_recovery (email, code_hash, code_expires_at) values (${sameEmail}, 'synthetic', now() + interval '10 minutes')`
+
+      await deleteAccountData([pId], sameEmail, 'password')
+
+      const count = async (table: string, where: string, value: string) => {
+        const rows = await sql.unsafe<{ n: number }[]>(`select count(*)::int as n from ${table} where ${where} = $1`, [value])
+        return Number(rows[0].n)
+      }
+      expect(await count('quest_users', 'id', pId)).toBe(0)
+      expect(await count('quest_users', 'id', uId)).toBe(1)
+      expect(await count('quest_progress', 'user_id', pId)).toBe(0)
+      expect(await count('quest_progress', 'user_id', uId)).toBe(1)
+      expect(await count('quest_files', 'user_id', pId)).toBe(0)
+      expect(await count('quest_files', 'user_id', uId)).toBe(1)
+      expect(await count('quest_passwords', 'email', sameEmail)).toBe(0)
+      expect(await count('quest_recovery', 'email', sameEmail)).toBe(0)
+      // The verified identity's pending email-code sign-in must survive a password deletion.
+      expect(await count('quest_otps', 'email', sameEmail)).toBe(1)
+      // Its quest_users row still exists, so its session version remains valid.
+      await expect(getSessionVersion(uId)).resolves.not.toBeNull()
+    } finally {
+      try {
+        await deleteAccountData(sameIds, sameEmail, 'all')
       } catch {
         // Keep the original failure; the afterAll also retries.
       }

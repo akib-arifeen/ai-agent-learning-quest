@@ -58,7 +58,7 @@ export default function PrivacyPage() {
           generates Spark’s replies, so your messages and the profile/quest context needed for a reply are sent to that model provider. Google receives sign-in
           data only when you choose Google sign-in. These providers process data on the site operator’s behalf. We do not sell your data, and there are no ads or
           trackers. The site operator can access the database for maintenance and security. There is no separate privileged learner-data dashboard or cheer inbox,
-          and nothing is shared with another learner or another person by default. This service is not end-to-end encrypted.
+          and nothing is shared with other learners by default; the providers above process data only to run the site. This service is not end-to-end encrypted.
         </p>
 
         <p>

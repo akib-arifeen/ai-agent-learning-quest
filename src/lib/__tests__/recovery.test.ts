@@ -10,14 +10,13 @@ const db = vi.hoisted(() => ({
   takeRecoveryAttempt: vi.fn<(email: string) => Promise<{ codeHash: string } | null>>(),
   issueRecoveryToken: vi.fn<(email: string, hash: string) => Promise<boolean>>(),
   resetPasswordWithToken: vi.fn<(email: string, tokenHash: string, passwordHash: string, userIds: string[]) => Promise<boolean>>(),
-  claimRecoveryToken: vi.fn<(email: string, hash: string) => Promise<boolean>>(),
-  deleteOtp: vi.fn<(email: string) => Promise<void>>(),
-  bumpSessionVersion: vi.fn<(userId: string) => Promise<number | null>>(),
-  deleteRecovery: vi.fn<(email: string) => Promise<void>>(),
   createPassword: vi.fn(),
   touchUser: vi.fn(),
 }))
 vi.mock('@/lib/db', () => db)
+
+const after = vi.hoisted(() => ({ runAfter: vi.fn<(task: () => Promise<void>) => void>() }))
+vi.mock('@/lib/after', () => after)
 
 const mail = vi.hoisted(() => ({
   sendRecoveryCode: vi.fn<(to: string, code: string) => Promise<void>>(async () => undefined),
@@ -35,7 +34,15 @@ vi.mock('@/lib/session', async (importOriginal) => {
 
 import { POST } from '@/app/api/recovery/route'
 import { otpEnabled } from '@/lib/mail'
-import { hashRecoveryCode, hashRecoveryToken, newRecoveryToken, sameHash, RECOVERY_CODE_TTL_MIN, RECOVERY_TOKEN_TTL_MIN } from '@/lib/recovery'
+import {
+  hashRecoveryCode,
+  hashRecoveryToken,
+  newRecoveryToken,
+  sameHash,
+  RECOVERY_CODE_TTL_MIN,
+  RECOVERY_MAX_ATTEMPTS,
+  RECOVERY_TOKEN_TTL_MIN,
+} from '@/lib/recovery'
 import { idForEmail, idForPasswordEmail } from '@/lib/session'
 
 const UNAVAILABLE = 'Password recovery by email isn’t available on this site yet. If you signed up with Google, use Google sign-in.'
@@ -43,8 +50,15 @@ const GENERIC = 'That code doesn’t match or has expired.'
 
 let emailSeq = 0
 let ipSeq = 0
+let tasks: Array<() => Promise<void>> = []
 const emailFor = (label: string) => `${label}-${++emailSeq}@example.com`
 const ipFor = () => `198.51.100.${++ipSeq}`
+
+const runTasks = async () => {
+  const queued = tasks
+  tasks = []
+  for (const task of queued) await task()
+}
 
 const post = (body: Record<string, unknown>, ip = ipFor()) =>
   POST(
@@ -57,15 +71,15 @@ const post = (body: Record<string, unknown>, ip = ipFor()) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  tasks = []
+  after.runAfter.mockImplementation((task) => {
+    tasks.push(task)
+  })
   db.getPasswordHash.mockResolvedValue(null)
   db.saveRecoveryCode.mockResolvedValue(undefined)
   db.takeRecoveryAttempt.mockResolvedValue(null)
   db.issueRecoveryToken.mockResolvedValue(false)
   db.resetPasswordWithToken.mockResolvedValue(false)
-  db.claimRecoveryToken.mockResolvedValue(false)
-  db.deleteOtp.mockResolvedValue(undefined)
-  db.bumpSessionVersion.mockResolvedValue(1)
-  db.deleteRecovery.mockResolvedValue(undefined)
   mail.sendRecoveryCode.mockResolvedValue(undefined)
   sessionMocks.hashPassword.mockReturnValue('scrypt$test$hash')
 })
@@ -75,7 +89,7 @@ afterEach(() => {
 })
 
 describe('POST /api/recovery request', () => {
-  it('returns the same 200 body for unknown and known addresses', async () => {
+  it('returns the same 200 body before any lookup, then handles known and unknown in the background', async () => {
     const known = emailFor('known')
     const unknown = emailFor('unknown')
     db.getPasswordHash.mockImplementation(async (email) => (email === known ? 'stored-hash' : null))
@@ -87,8 +101,15 @@ describe('POST /api/recovery request', () => {
     expect(b.status).toBe(200)
     expect(await a.json()).toEqual({ ok: true })
     expect(await b.json()).toEqual({ ok: true })
+    // The response must not wait for account lookup or email scheduling work.
+    expect(after.runAfter).toHaveBeenCalledTimes(2)
+    expect(db.getPasswordHash).not.toHaveBeenCalled()
+    expect(db.saveRecoveryCode).not.toHaveBeenCalled()
+    expect(mail.sendRecoveryCode).not.toHaveBeenCalled()
 
-    // Only the known address stores and sends anything.
+    await runTasks()
+
+    expect(db.getPasswordHash).toHaveBeenCalledTimes(2)
     expect(db.saveRecoveryCode).toHaveBeenCalledTimes(1)
     expect(mail.sendRecoveryCode).toHaveBeenCalledTimes(1)
     expect(db.saveRecoveryCode.mock.calls[0][0]).toBe(known)
@@ -99,9 +120,11 @@ describe('POST /api/recovery request', () => {
     expect(db.touchUser).not.toHaveBeenCalled()
   })
 
-  it('never creates an account or password row for an unknown address', async () => {
+  it('runs no save or send for an unknown address', async () => {
     const res = await post({ action: 'request', email: emailFor('nobody') })
     expect(res.status).toBe(200)
+    expect(db.getPasswordHash).not.toHaveBeenCalled()
+    await runTasks()
     expect(db.getPasswordHash).toHaveBeenCalledTimes(1)
     expect(db.saveRecoveryCode).not.toHaveBeenCalled()
     expect(mail.sendRecoveryCode).not.toHaveBeenCalled()
@@ -109,7 +132,18 @@ describe('POST /api/recovery request', () => {
     expect(db.touchUser).not.toHaveBeenCalled()
   })
 
-  it('returns 503 before any lookup when email delivery is off', async () => {
+  it('keeps the generic response when the background email send fails', async () => {
+    const email = emailFor('smtp')
+    db.getPasswordHash.mockResolvedValue('stored-hash')
+    mail.sendRecoveryCode.mockRejectedValueOnce(new Error('smtp down'))
+    const res = await post({ action: 'request', email })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    await expect(runTasks()).resolves.toBeUndefined()
+    expect(mail.sendRecoveryCode).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 503 before scheduling any lookup when email delivery is off', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('SMTP_USER', '')
     vi.stubEnv('SMTP_PASS', '')
@@ -118,18 +152,21 @@ describe('POST /api/recovery request', () => {
     const res = await post({ action: 'request', email: emailFor('prod') })
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ error: UNAVAILABLE })
+    expect(after.runAfter).not.toHaveBeenCalled()
     expect(db.getPasswordHash).not.toHaveBeenCalled()
     expect(db.saveRecoveryCode).not.toHaveBeenCalled()
     expect(mail.sendRecoveryCode).not.toHaveBeenCalled()
   })
 
-  it('rate limits repeated requests for one address', async () => {
+  it('rate limits repeated requests for one address without scheduling extra work', async () => {
     const email = emailFor('rate')
     const ip = ipFor()
     db.getPasswordHash.mockResolvedValue('stored-hash')
     for (let i = 0; i < 3; i++) expect((await post({ action: 'request', email }, ip)).status).toBe(200)
     const res = await post({ action: 'request', email }, ip)
     expect(res.status).toBe(429)
+    expect(after.runAfter).toHaveBeenCalledTimes(3)
+    await runTasks()
     expect(db.saveRecoveryCode).toHaveBeenCalledTimes(3)
     expect(mail.sendRecoveryCode).toHaveBeenCalledTimes(3)
   })
@@ -188,11 +225,6 @@ describe('POST /api/recovery reset', () => {
       'scrypt$test$hash',
       [idForPasswordEmail(email), idForEmail(email)],
     )
-    // The old multi-step sequence must not run outside the transaction.
-    expect(db.claimRecoveryToken).not.toHaveBeenCalled()
-    expect(db.deleteOtp).not.toHaveBeenCalled()
-    expect(db.bumpSessionVersion).not.toHaveBeenCalled()
-    expect(db.deleteRecovery).not.toHaveBeenCalled()
   })
 
   it('rejects a short password before calling the atomic reset', async () => {
@@ -216,19 +248,16 @@ describe('POST /api/recovery reset', () => {
       'scrypt$test$hash',
       [idForPasswordEmail(email), idForEmail(email)],
     )
-    expect(db.claimRecoveryToken).not.toHaveBeenCalled()
-    expect(db.deleteOtp).not.toHaveBeenCalled()
-    expect(db.bumpSessionVersion).not.toHaveBeenCalled()
-    expect(db.deleteRecovery).not.toHaveBeenCalled()
     expect(db.createPassword).not.toHaveBeenCalled()
     expect(db.touchUser).not.toHaveBeenCalled()
   })
 })
 
 describe('recovery helpers', () => {
-  it('keeps the code and token lifetimes', () => {
+  it('keeps the code and token lifetimes and attempt budget', () => {
     expect(RECOVERY_CODE_TTL_MIN).toBe(10)
     expect(RECOVERY_TOKEN_TTL_MIN).toBe(15)
+    expect(RECOVERY_MAX_ATTEMPTS).toBe(5)
   })
 
   it('hashes codes deterministically after normalising the email', () => {

@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { runAfter } from '@/lib/after'
 import { getPasswordHash, issueRecoveryToken, resetPasswordWithToken, saveRecoveryCode, takeRecoveryAttempt } from '@/lib/db'
 import { fail, json, withinLimit } from '@/lib/http'
 import { otpEnabled, sendRecoveryCode } from '@/lib/mail'
@@ -26,9 +27,11 @@ export async function POST(req: Request) {
     if (!withinLimit('recovery-request-ip', ip, 10, WINDOW) || !withinLimit('recovery-request-email', email, 3, WINDOW)) {
       return fail('Too many requests — wait a few minutes and try again.', 429)
     }
-    // Never create an account or a password here; unknown addresses look identical.
-    const stored = await getPasswordHash(email)
-    if (stored) {
+    // Unknown and known addresses do the same synchronous work. The account lookup and
+    // email send happen after the response so timing cannot reveal whether a password exists.
+    runAfter(async () => {
+      const stored = await getPasswordHash(email)
+      if (!stored) return
       const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
       await saveRecoveryCode(email, hashRecoveryCode(email, code))
       try {
@@ -36,7 +39,7 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error('recovery send', e)
       }
-    }
+    })
     return json({ ok: true })
   }
 

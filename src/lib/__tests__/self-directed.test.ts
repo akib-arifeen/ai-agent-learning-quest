@@ -53,7 +53,9 @@ describe('self-directed learner language', () => {
   it('asks for a private reflection at the finish line', () => {
     const questView = read('components/QuestView.tsx')
     expect(questView).toMatch(/private reflection/i)
-    expect(questView).toMatch(/only you can see/i)
+    expect(questView).toMatch(/not shown to other learners in the app/i)
+    expect(questView).toMatch(/see how your data is handled/i)
+    expect(questView).toContain('href="/privacy"')
     // The stored check-in field keeps its stable id.
     expect(questView).toContain('htmlFor="msg"')
   })
@@ -66,8 +68,10 @@ describe('self-directed learner language', () => {
 
   it('does not imply default sharing of evidence', () => {
     const copy = read('components/ConnectAgent.tsx')
-    expect(copy).toMatch(/not shown to another learner or another person/i)
-    expect(copy).toMatch(/nothing is shared with other people by default/i)
+    expect(copy).toMatch(/not shown to other learners in the app/i)
+    expect(copy).toMatch(/not shared with other learners by default/i)
+    expect(copy).toMatch(/see the privacy note/i)
+    expect(copy).toContain('href="/privacy"')
   })
 })
 

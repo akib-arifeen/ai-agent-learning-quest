@@ -52,7 +52,9 @@ export default function AccountSettings() {
       setStatus('Your account was deleted. Redirecting to sign-in…')
       setTimeout(() => window.location.assign('/'), 350)
     } catch {
-      setErr('Couldn’t reach the server. Your account was not deleted — check your connection and try again.')
+      setErr(
+        'We couldn’t confirm whether deletion finished — the connection dropped. Reload the page: if you’re signed out, it completed; if you’re still signed in, nothing was deleted and you can try again.',
+      )
       setBusy(false)
     }
   }

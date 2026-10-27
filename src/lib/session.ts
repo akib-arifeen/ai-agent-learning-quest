@@ -3,8 +3,8 @@
  * optional "Sign in with Google" (we verify Google's ID token ourselves — no Firebase,
  * no third-party auth service, no usage quota). Either way the learner then carries our
  * own signed, httpOnly cookie that lasts a year and rolls forward, so they stay signed
- * in. A person's id comes from their email, so Google and password sign-ins for the
- * same address land in the same account. Server-only.
+ * in. Verified Google and emailed-code identities share a `u_` account for the same
+ * address; unverified password accounts use a separate `p_` id space. Server-only.
  */
 
 import crypto from 'crypto'

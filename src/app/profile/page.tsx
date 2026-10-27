@@ -1,6 +1,7 @@
 'use client'
 
 import { LogOut, Pencil } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import Onboarding from '@/components/Onboarding'
 import PageHead from '@/components/PageHead'
@@ -89,7 +90,10 @@ export default function ProfilePage() {
         </button>
       </section>
 
-      <div>
+      <div className="row">
+        <Link href="/account" className="btn btn--soft">
+          Account &amp; data
+        </Link>
         <button type="button" className="btn btn--ghost" onClick={signOut}>
           <LogOut size={16} aria-hidden="true" /> Sign out
         </button>

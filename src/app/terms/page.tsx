@@ -9,26 +9,33 @@ export default function TermsPage() {
       <span className="mono muted">Creative AI Agent Quest</span>
       <h1 style={{ fontSize: 'var(--text-3xl)', margin: '6px 0 var(--space-5)' }}>Terms of use</h1>
       <div className="stack" style={{ color: 'var(--color-ink-2)' }}>
-        <p>Creative AI Agent Quest is a free learning site: 10 quests, an AI coach called Spark, and a way to track your progress. By using it you agree to these simple terms.</p>
         <p>
-          <b>Be kind and honest.</b> Use the site for learning. Don’t upload anything illegal, hateful, or that isn’t yours to share, and don’t try to
-          break, overload or misuse the site or the AI coach.
+          Creative AI Agent Quest is a free, self-directed learning site: 10 quests, optional guidance from an AI assistant called Spark, and a way to track your
+          progress. By using it you agree to these simple terms.
         </p>
         <p>
-          <b>Your work stays yours.</b> Anything you make and upload remains your own. You let us store it so it can show up on your Trophies page and
-          for your mentor.
+          <b>Be kind and honest.</b> Use the site for learning. Don’t upload anything illegal, hateful, or that isn’t yours to share, and don’t try to break,
+          overload or misuse the site or the AI assistant.
         </p>
         <p>
-          <b>Spark is an AI.</b> Its hints can be wrong — double-check anything important, especially commands that delete or change files. Always work
-          on copies of your projects.
+          <b>Your work stays yours.</b> Anything you make and upload remains your own. You give us permission to store, process and display it only to run the
+          site and show it on your own trophies and pro-track pages. We do not claim ownership of your work.
         </p>
         <p>
-          <b>No guarantees.</b> The site is provided as-is, for free. It may change, go offline, or lose data, so keep your own copies of anything that
-          matters.
+          <b>Spark is an AI.</b> Its hints can be wrong — double-check anything important, especially commands that delete or change files. Always work on copies
+          of your projects.
         </p>
         <p>
-          <b>Accounts.</b> You can stop using the site any time; ask your mentor to delete your account and data. Accounts that misuse the site may be
-          removed.
+          <b>No guarantees.</b> The site is provided as-is, for free. It may change, go offline, or lose data, so keep your own copies of anything that matters.
+          We do not promise backups.
+        </p>
+        <p>
+          <b>Accounts and deletion.</b> You can stop using the site any time. Self-service deletion is available in{' '}
+          <a href="/account">
+            <b>Account &amp; data</b>
+          </a>
+          : password accounts confirm the current password, and Google or emailed-code accounts type an explicit confirmation phrase. Accounts that misuse the site
+          may be removed.
         </p>
         <p>
           See also the <a href="/privacy">privacy note</a>.

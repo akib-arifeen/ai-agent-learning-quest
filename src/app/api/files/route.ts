@@ -1,6 +1,6 @@
 import { del, head } from '@vercel/blob'
 import { type HandleUploadBody, handleUpload } from '@vercel/blob/client'
-import { addFile, logActivity, removeFile, usedBytes } from '@/lib/db'
+import { addFile, getFile, logActivity, removeFile, usedBytes } from '@/lib/db'
 import { fail, json, me, sameUser, withinLimit } from '@/lib/http'
 import { questById } from '@/lib/quest'
 
@@ -64,8 +64,19 @@ export async function DELETE(req: Request) {
   if (!sameUser(u, req)) return fail('You signed in as someone else in another tab — reloading.', 409)
   const id = Number(new URL(req.url).searchParams.get('id'))
   if (!Number.isSafeInteger(id)) return fail('Unknown file.')
-  const url = await removeFile(u.id, id)
-  if (!url) return fail('Unknown file.', 404)
-  await del(url).catch(() => undefined) // the index row is gone either way
+  const file = await getFile(u.id, id)
+  if (!file) return fail('Unknown file.', 404)
+  try {
+    await del(file.url, { token: process.env.BLOB_READ_WRITE_TOKEN })
+  } catch (e) {
+    console.error('file blob delete', e)
+    return fail('Couldn’t delete that file just now. It’s still in your list — try again.', 502)
+  }
+  try {
+    await removeFile(u.id, id)
+  } catch (e) {
+    console.error('file index delete', e)
+    return fail('The file was removed from storage, but its list entry couldn’t be updated. Reload and try again.', 502)
+  }
   return json({ ok: true })
 }

@@ -102,7 +102,7 @@ const handler = createMcpHandler(
             'Evidence:',
             ...rows,
             'Items not marked optional are required.',
-            `Submit with quest_submit_evidence (taskId "${t.id}", items [{ id, kind, source, content }]). Send real file contents and command output, only what is listed. Never send .env files, keys, tokens or passwords: secrets are stripped, and the learner and mentor see every submission.`,
+            `Submit with quest_submit_evidence (taskId "${t.id}", items [{ id, kind, source, content }]). Send real file contents and command output, only what is listed. Never send .env files, keys, tokens or passwords: secrets are stripped, and the learner sees every submission.`,
           ].join('\n'),
         )
       },

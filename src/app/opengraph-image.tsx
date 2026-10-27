@@ -15,7 +15,7 @@ export default function OpengraphImage() {
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center' }}>
           <div style={{ display: 'flex', fontSize: 24, letterSpacing: 4, fontFamily: 'monospace', color: '#5A6068' }}>CREATIVE AI AGENT QUEST</div>
           <div style={{ display: 'flex', fontSize: 72, fontWeight: 800, lineHeight: 1.05, marginTop: 24, maxWidth: 700 }}>Learn to build anything with an AI agent.</div>
-          <div style={{ display: 'flex', fontSize: 28, color: '#3A4048', marginTop: 28, maxWidth: 700 }}>10 quests · an AI coach · works with Kilo Code, OpenCode, Claude Code and more</div>
+          <div style={{ display: 'flex', fontSize: 28, color: '#3A4048', marginTop: 28, maxWidth: 700 }}>10 quests · optional Spark coaching · works with Kilo Code, OpenCode, Claude Code and more</div>
           <div style={{ display: 'flex', marginTop: 36 }}>
             {chips.map((c) => (
               <div key={c} style={{ display: 'flex', fontSize: 24, fontWeight: 700, padding: '10px 24px', borderRadius: 999, background: '#FFFFFF', border: '2px solid #D9D3BF', marginRight: 16 }}>

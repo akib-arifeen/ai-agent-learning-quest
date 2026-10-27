@@ -17,9 +17,9 @@ export type Gate = {
   nextLabel: string
 }
 
-const PUBLIC = new Set(['/privacy', '/terms', '/mcp'])
+const PUBLIC = new Set(['/privacy', '/terms', '/mcp', '/recover'])
 
-const GATED = new Set(['/guide', '/pro', '/profile', '/schedule', '/trophies', '/mentor'])
+const GATED = new Set(['/guide', '/pro', '/profile', '/account', '/schedule', '/trophies'])
 
 /** Trim the trailing slash and the query/hash, keeping the root as "/". */
 export function normalizePath(pathname: string): string {

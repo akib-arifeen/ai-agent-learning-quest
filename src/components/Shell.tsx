@@ -3,7 +3,7 @@
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, CalendarDays, Flame, Map as MapIcon, Rocket, Shield, Trophy } from 'lucide-react'
+import { BookOpen, CalendarDays, Flame, Map as MapIcon, Rocket, Settings, Trophy } from 'lucide-react'
 import { firstName } from '@/lib/game'
 import { questById } from '@/lib/quest'
 import { toolOf } from '@/lib/tools'
@@ -26,7 +26,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const questId = path.startsWith('/quest/') ? path.split('/')[2] : 'general'
   const toNext = sum.rank.next ? sum.rank.next - sum.xp : 0
   const toolName = setup.tool === 'other' ? state.profile?.tool_other || 'your agent' : toolOf(setup.tool).name
-  const tabs = state.mentor ? [...NAV, { href: '/mentor', label: 'Mentor', icon: Shield }] : NAV
 
   return (
     <>
@@ -48,11 +47,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 <n.icon size={17} /> {n.label}
               </Link>
             ))}
-            {state.mentor && (
-              <Link href="/mentor" aria-current={path.startsWith('/mentor') ? 'page' : undefined}>
-                <Shield size={17} /> Mentor
-              </Link>
-            )}
           </nav>
           <div className="hud">
             <span className={`hud__streak tnum ${sum.streak ? '' : 'is-cold'}`} title={`Best streak: ${sum.best} days`}>
@@ -70,6 +64,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </span>
               </span>
             </span>
+            <Link
+              href="/account"
+              className="iconbtn"
+              title="Account and data"
+              aria-label="Account and data"
+              aria-current={path === '/account' || path.startsWith('/account/') ? 'page' : undefined}
+            >
+              <Settings size={18} />
+            </Link>
             <Link href="/profile" className="avatar" title={`Signed in as ${state.user.email}`} aria-label="Your profile" aria-current={path.startsWith('/profile') ? 'page' : undefined}>
               {state.user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -84,24 +87,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       <main id="main" tabIndex={-1} className="page">{children}</main>
 
-      {!path.startsWith('/mentor') && (
-        <motion.button
-          className="fab"
-          onClick={() => openCoach(questById(questId) ? questId : 'general')}
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 24, delay: 0.4 }}
-          aria-label="Ask Spark, your AI coach"
-        >
-          <span className="fab__face">
-            <Spark size={32} bob={false} />
-          </span>
-          Ask Spark
-        </motion.button>
-      )}
+      <motion.button
+        className="fab"
+        onClick={() => openCoach(questById(questId) ? questId : 'general')}
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 24, delay: 0.4 }}
+        aria-label="Ask Spark, your AI coach"
+      >
+        <span className="fab__face">
+          <Spark size={32} bob={false} />
+        </span>
+        Ask Spark
+      </motion.button>
 
-      <nav className="tabbar" aria-label="Main" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
-        {tabs.map((n) => (
+      <nav className="tabbar" aria-label="Main" style={{ gridTemplateColumns: `repeat(${NAV.length}, 1fr)` }}>
+        {NAV.map((n) => (
           <Link key={n.href} href={n.href} aria-current={active(n.href) ? 'page' : undefined}>
             <span className="tabbar__dot" />
             <n.icon size={22} />

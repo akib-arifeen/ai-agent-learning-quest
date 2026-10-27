@@ -1163,7 +1163,7 @@ export const QUESTS: Quest[] = [
           { title: 'Sprites from Blender', steps: ['Rendered sprites (Task 9 technique)', 'Sprites in the game', 'Save point'] },
           { title: 'Sound + polish', steps: ['Sound effects + music', 'Your own polish list', 'Save point'] },
           { title: 'Playtest', steps: ['A friend played it start to finish', 'Fixed the top 3 issues', 'Save point'] },
-          { title: 'Publish', steps: ['Zip with index.html at the root', 'itch.io: Kind = HTML, played in browser', 'Shared the link with your mentor'] },
+          { title: 'Publish', steps: ['Zip with index.html at the root', 'itch.io: Kind = HTML, played in browser', 'Shared the link with someone you trust'] },
         ],
       },
       {
@@ -1194,7 +1194,7 @@ export const QUESTS: Quest[] = [
           { title: 'Art from Blender', steps: ['Rendered sprites/models (Task 9 technique)', 'Art in the game', 'Save point'] },
           { title: 'Sound + polish', steps: ['Sound effects + music', 'Your own polish list', 'Save point'] },
           { title: 'Playtest', steps: ['A friend played it start to finish', 'Fixed the top 3 issues', 'Save point'] },
-          { title: 'Publish', steps: ['Web export works locally', 'itch.io: HTML, played in browser', 'Shared the link with your mentor'] },
+          { title: 'Publish', steps: ['Web export works locally', 'itch.io: HTML, played in browser', 'Shared the link with someone you trust'] },
         ],
       },
       {
@@ -1226,7 +1226,7 @@ export const QUESTS: Quest[] = [
           { title: 'Models from Blender', steps: ['Your models imported', 'Art in the game', 'Save point'] },
           { title: 'Sound + polish', steps: ['Sound effects + music', 'Your own polish list', 'Save point'] },
           { title: 'Playtest', steps: ['A friend played it start to finish', 'Fixed the top 3 issues', 'Save point'] },
-          { title: 'Publish', steps: ['Published from Studio', 'Set to Public', 'Shared the link with your mentor'] },
+          { title: 'Publish', steps: ['Published from Studio', 'Set to Public', 'Shared the link with someone you trust'] },
         ],
       },
     ],
@@ -1345,7 +1345,7 @@ export const UPGRADE_SIGNS = [
   'You’ve finished Quest 8+ and actually use what you built.',
   'You’re using it on your own work, not just quests.',
   'You keep hitting free-model limits despite good habits.',
-  'Stuck before Quest 6? Upgrading won’t help — ask Spark or your mentor instead.',
+  'Stuck before Quest 6? Upgrading won’t help — ask Spark instead.',
 ]
 
 export const DAY_RULES = [

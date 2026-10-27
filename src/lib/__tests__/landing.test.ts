@@ -25,9 +25,11 @@ describe('marketing landing', () => {
     expect(html).toContain('no ceiling')
   })
 
-  it('says password recovery is handled by the mentor, not self-serve', () => {
-    expect(html).toContain('Ask your mentor')
-    expect(html).toContain('There is no self-serve reset email')
+  it('points password recovery at the self-service page', () => {
+    expect(html).toContain('href="/recover"')
+    expect(html).toContain('Reset it with an email code')
+    expect(html).not.toMatch(/mentor/i)
+    expect(html).not.toContain('no self-serve reset email')
   })
 
   it('gives the syllabus a real heading hierarchy', () => {

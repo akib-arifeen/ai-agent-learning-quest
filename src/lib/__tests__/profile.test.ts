@@ -113,9 +113,15 @@ describe('roleLabel', () => {
   })
 })
 
-describe('mentors', () => {
-  it('never get the full-screen onboarding, only the prompt', () => {
-    const s = { ...state({}), mentor: true }
+describe('self-directed onboarding', () => {
+  it('ignores a stray mentor-shaped flag: a new learner still gets onboarding', () => {
+    const s = { ...state({}), mentor: true } as unknown as QuestState
+    expect(needsOnboarding(s)).toBe(true)
+    expect(showPersonalisePrompt(s)).toBe(false)
+  })
+
+  it('ignores a stray mentor-shaped flag: a started learner still gets the prompt', () => {
+    const s = { ...state({ progress: 1 }), mentor: true } as unknown as QuestState
     expect(needsOnboarding(s)).toBe(false)
     expect(showPersonalisePrompt(s)).toBe(true)
   })

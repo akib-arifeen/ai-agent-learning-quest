@@ -7,9 +7,10 @@
 
 import crypto from 'crypto'
 import postgres from 'postgres'
-import type { Activity, Checkin, Cheer, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
+import type { Activity, Checkin, Learner, ProgressRow, QuestFile, QuestState, SittingRec } from './game'
 import type { CheckResult, EvidenceItem, Submission } from './pro'
 import type { Profile, ProfilePatch } from './profile'
+import { RECOVERY_CODE_TTL_MIN, RECOVERY_MAX_ATTEMPTS, RECOVERY_TOKEN_TTL_MIN } from './recovery'
 import { hmac } from './session'
 
 // One client per server instance. `prepare: false` because Neon's pooled URL sits
@@ -28,15 +29,18 @@ export const sql =
 // Idempotent schema, applied lazily on first use so a fresh database needs no
 // migration step. Every statement is IF NOT EXISTS — safe to run on every cold start.
 const SCHEMA = `
+create sequence if not exists quest_session_seq;
 create table if not exists quest_users (
   id text primary key,
   email text not null,
   name text not null default '',
   image text,
   start_date date,
+  session_version int not null default 0,
   created_at timestamptz not null default now(),
   last_seen timestamptz not null default now()
 );
+alter table quest_users add column if not exists session_version int not null default 0;
 create table if not exists quest_passwords (
   email text primary key,
   hash text not null,
@@ -47,6 +51,15 @@ create table if not exists quest_otps (
   email text primary key,
   code_hash text not null,
   expires_at timestamptz not null,
+  attempts int not null default 0,
+  created_at timestamptz not null default now()
+);
+create table if not exists quest_recovery (
+  email text primary key,
+  code_hash text not null default '',
+  code_expires_at timestamptz,
+  token_hash text,
+  token_expires_at timestamptz,
   attempts int not null default 0,
   created_at timestamptz not null default now()
 );
@@ -156,6 +169,22 @@ create table if not exists quest_evidence (
 create index if not exists quest_evidence_user on quest_evidence (user_id, task_id, id);
 `
 
+/** Every table deleted with an account. Child tables first; quest_users last. */
+export const ACCOUNT_TABLES = [
+  'quest_progress',
+  'quest_activity',
+  'quest_busy',
+  'quest_checkins',
+  'quest_messages',
+  'quest_files',
+  'quest_cheers',
+  'quest_profiles',
+  'quest_pace',
+  'quest_mcp_tokens',
+  'quest_evidence',
+  'quest_users',
+] as const
+
 let ready: Promise<void> | null = null
 /** Make sure the tables exist (once per instance; retried if it failed). */
 export const ensureSchema = () =>
@@ -170,7 +199,7 @@ export const ensureSchema = () =>
 // Postgres returns Date objects for timestamptz; the client wants ISO strings.
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v) : null)
 // A real calendar day (round-trips through Date, so 2026-02-31 fails) in a sane range.
-const isDay = (s: unknown): s is string => {
+export const isDay = (s: unknown): s is string => {
   if (typeof s !== 'string' || !/^20[2-9]\d-\d{2}-\d{2}$/.test(s)) return false
   const t = new Date(`${s}T00:00:00Z`)
   return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === s
@@ -196,8 +225,8 @@ export async function touchUser(u: { id: string; email: string; name: string; im
   await ensureSchema()
   const start = isDay(today) ? today : null
   const rows = await sql`
-    insert into quest_users (id, email, name, image, start_date)
-    values (${u.id}, ${u.email}, ${u.name}, ${u.image || null}, coalesce(${start}::date, current_date))
+    insert into quest_users (id, email, name, image, start_date, session_version)
+    values (${u.id}, ${u.email}, ${u.name}, ${u.image || null}, coalesce(${start}::date, current_date), nextval('quest_session_seq'))
     on conflict (id) do update set
       email = excluded.email, name = excluded.name, image = excluded.image, last_seen = now(),
       start_date = coalesce(quest_users.start_date, excluded.start_date)
@@ -206,11 +235,21 @@ export async function touchUser(u: { id: string; email: string; name: string; im
   return { id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || start || '', lastSeen: iso(r.last_seen) || '' }
 }
 
+/**
+ * The security version a signed-in cookie must carry. Null means the account row is
+ * gone (deleted or never created), so no cookie may be accepted.
+ */
+export async function getSessionVersion(userId: string): Promise<number | null> {
+  await ensureSchema()
+  const rows = await sql`select session_version from quest_users where id = ${userId}`
+  return rows[0] ? Number(rows[0].session_version) : null
+}
+
 /** Everything one learner's screens render from. */
 export async function loadState(user: Learner): Promise<QuestState> {
   await ensureSchema()
   const id = user.id
-  const [progress, busy, checkins, activity, days, cheers, msgs, files, profile, evidence, token, pace] = await Promise.all([
+  const [progress, busy, checkins, activity, days, msgs, files, profile, evidence, token, pace] = await Promise.all([
     sql`select * from quest_progress where user_id = ${id}`,
     sql`select to_char(day, 'YYYY-MM-DD') as day from quest_busy where user_id = ${id} order by day`,
     sql`select id, task_id, message, image is not null as has_image, created_at from quest_checkins where user_id = ${id} order by id desc limit 200`,
@@ -221,7 +260,6 @@ export async function loadState(user: Learner): Promise<QuestState> {
     sql`select min(at) as at from quest_activity
         where user_id = ${id} and kind in ('step', 'sitting', 'complete', 'checkin', 'upload', 'evidence')
         group by floor(extract(epoch from at) / 900) order by 1`,
-    sql`select id, from_name, message, created_at, seen_at from quest_cheers where user_id = ${id} order by id desc limit 20`,
     sql`select count(*)::int as n from quest_messages where user_id = ${id} and role = 'user'`,
     sql`select id, task_id, url, name, content_type, size, created_at from quest_files where user_id = ${id} order by id desc limit 500`,
     sql`select * from quest_profiles where user_id = ${id}`,
@@ -238,7 +276,6 @@ export async function loadState(user: Learner): Promise<QuestState> {
     checkins: checkins.map((r) => ({ ...r, created_at: iso(r.created_at) })) as unknown as Checkin[],
     activity: activity.map((r) => ({ ...r, at: iso(r.at) })) as unknown as Activity[],
     days: days.map((r) => iso(r.at) || ''),
-    cheers: cheers.map((r) => ({ ...r, created_at: iso(r.created_at), seen_at: iso(r.seen_at) })) as unknown as Cheer[],
     coachMessages: Number(msgs[0]?.n || 0),
     files: files.map((r) => ({ ...r, id: Number(r.id), size: Number(r.size), created_at: iso(r.created_at) })) as unknown as QuestFile[],
     profile: profile[0] ? toProfile(profile[0]) : null,
@@ -351,7 +388,7 @@ export async function toggleStep(userId: string, taskId: string, stepId: string,
   return toProgress(rows[0])
 }
 
-/** Append to the activity log (feeds the streak and the mentor's feed). */
+/** Append to the activity log (feeds the streak and the learner's activity feed). */
 export async function logActivity(userId: string, kind: string, taskId: string | null, detail: string | null = null) {
   await sql`insert into quest_activity (user_id, kind, task_id, detail) values (${userId}, ${kind}, ${taskId}, ${detail})`
 }
@@ -370,12 +407,10 @@ export async function addCheckin(userId: string, taskId: string, message: string
   return Number(rows[0].id)
 }
 
-/** A check-in's screenshot as a data URL — only for its owner, or for a mentor. */
-export async function checkinImage(id: number, userId: string, mentor: boolean): Promise<string | null> {
+/** A check-in's screenshot as a data URL — only for its owner. */
+export async function checkinImage(id: number, userId: string): Promise<string | null> {
   await ensureSchema()
-  const rows = mentor
-    ? await sql`select image from quest_checkins where id = ${id}`
-    : await sql`select image from quest_checkins where id = ${id} and user_id = ${userId}`
+  const rows = await sql`select image from quest_checkins where id = ${id} and user_id = ${userId}`
   return (rows[0]?.image as string) || null
 }
 
@@ -393,24 +428,6 @@ export async function addMessage(userId: string, taskId: string, role: 'user' | 
   await sql`insert into quest_messages (user_id, task_id, role, content) values (${userId}, ${taskId}, ${role}, ${content})`
 }
 
-/** A learner's most recent chat messages (mentor view), oldest first. */
-export async function recentMessages(userId: string, limit = 400) {
-  await ensureSchema()
-  const rows = await sql`
-    select id, task_id, role, content, created_at from quest_messages where user_id = ${userId}
-    order by id desc limit ${limit}`
-  return rows.reverse().map((r) => ({ id: Number(r.id), task_id: String(r.task_id), role: String(r.role), content: String(r.content), created_at: iso(r.created_at) }))
-}
-
-/** Everyone who has signed in (mentor view), most recently active first. */
-export async function listLearners(): Promise<Learner[]> {
-  await ensureSchema()
-  const rows = await sql`
-    select id, email, name, image, to_char(start_date, 'YYYY-MM-DD') as start_date, last_seen
-    from quest_users order by last_seen desc limit 200`
-  return rows.map((r) => ({ id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || '', lastSeen: iso(r.last_seen) || '' }))
-}
-
 /** One learner by id. */
 export async function getLearner(id: string): Promise<Learner | null> {
   await ensureSchema()
@@ -418,17 +435,6 @@ export async function getLearner(id: string): Promise<Learner | null> {
     select id, email, name, image, to_char(start_date, 'YYYY-MM-DD') as start_date, last_seen from quest_users where id = ${id}`
   const r = rows[0]
   return r ? { id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || '', lastSeen: iso(r.last_seen) || '' } : null
-}
-
-/** Mentor sends a learner a cheer for their home screen. */
-export async function addCheer(userId: string, fromName: string, message: string) {
-  await ensureSchema()
-  await sql`insert into quest_cheers (user_id, from_name, message) values (${userId}, ${fromName}, ${message})`
-}
-
-/** The learner dismisses a cheer. */
-export async function seeCheer(userId: string, id: number) {
-  await sql`update quest_cheers set seen_at = now() where id = ${id} and user_id = ${userId} and seen_at is null`
 }
 
 /** Record a file a learner uploaded (the bytes live in Blob storage; this is the index). */
@@ -448,6 +454,44 @@ export async function removeFile(userId: string, id: number): Promise<string | n
   return (rows[0]?.url as string) || null
 }
 
+/** One file's Blob URL, scoped to its owner. */
+export async function getFile(userId: string, id: number): Promise<{ url: string } | null> {
+  await ensureSchema()
+  const rows = await sql`select url from quest_files where id = ${id} and user_id = ${userId}`
+  return rows[0] ? { url: String(rows[0].url) } : null
+}
+
+/** Every Blob URL owned by these account identities (deduped, no live Blob list call). */
+export async function listAccountBlobUrls(userIds: string[]): Promise<string[]> {
+  await ensureSchema()
+  if (!userIds.length) return []
+  const rows = await sql`select url from quest_files where user_id = any(${userIds})`
+  return [...new Set(rows.map((r) => String(r.url || '')).filter(Boolean))]
+}
+
+/**
+ * Delete every database row keyed to these account identities, plus the password/OTP/
+ * recovery records for the email. One transaction: a failure rolls back everything.
+ * `emailAuth: 'password'` is an unverified password-account deletion: it removes its
+ * password and recovery records but leaves the verified identity's pending OTP alone.
+ * Deleting quest_users makes every old cookie fail the session-version lookup.
+ */
+export async function deleteAccountData(userIds: string[], email: string, emailAuth: 'all' | 'password'): Promise<void> {
+  await ensureSchema()
+  if (!userIds.length) return
+  await sql.begin(async (tx) => {
+    for (const table of ACCOUNT_TABLES) {
+      if (table === 'quest_users') continue
+      // Table names come from the fixed ACCOUNT_TABLES list, never from a caller.
+      await tx`delete from ${tx(table)} where user_id = any(${userIds})`
+    }
+    await tx`delete from quest_users where id = any(${userIds})`
+    await tx`delete from quest_passwords where email = ${email}`
+    if (emailAuth === 'all') await tx`delete from quest_otps where email = ${email}`
+    await tx`delete from quest_recovery where email = ${email}`
+  })
+}
+
 /** The stored password hash for an email account, or null if it has none. */
 export async function getPasswordHash(email: string): Promise<string | null> {
   await ensureSchema()
@@ -460,14 +504,6 @@ export async function createPassword(email: string, hash: string): Promise<boole
   await ensureSchema()
   const rows = await sql`insert into quest_passwords (email, hash) values (${email}, ${hash}) on conflict do nothing returning email`
   return rows.length > 0
-}
-
-/** Replace an email account's password (mentor reset). */
-export async function setPassword(email: string, hash: string) {
-  await ensureSchema()
-  await sql`
-    insert into quest_passwords (email, hash) values (${email}, ${hash})
-    on conflict (email) do update set hash = excluded.hash, updated_at = now()`
 }
 
 /** Store (or replace) the pending sign-in code for an email. */
@@ -497,6 +533,70 @@ export async function takeOtpAttempt(email: string): Promise<{ codeHash: string 
 /** A used code can't be used again. */
 export async function deleteOtp(email: string) {
   await sql`delete from quest_otps where email = ${email}`
+}
+
+// ───────────────────────────── password recovery ─────────────────────────────
+
+/** Store (or replace) a recovery code; old guesses stay counted for 30 minutes. */
+export async function saveRecoveryCode(email: string, codeHash: string, minutes = RECOVERY_CODE_TTL_MIN) {
+  await ensureSchema()
+  await sql`
+    insert into quest_recovery (email, code_hash, code_expires_at, token_hash, token_expires_at, attempts, created_at)
+    values (${email}, ${codeHash}, now() + make_interval(mins => ${minutes}), null, null, 0, now())
+    on conflict (email) do update set
+      code_hash = excluded.code_hash,
+      code_expires_at = excluded.code_expires_at,
+      token_hash = null,
+      token_expires_at = null,
+      created_at = now(),
+      attempts = case when quest_recovery.created_at > now() - interval '30 minutes' then quest_recovery.attempts else 0 end`
+}
+
+/** Count one recovery-code guess and return the hash only while the code is usable. */
+export async function takeRecoveryAttempt(email: string): Promise<{ codeHash: string } | null> {
+  await ensureSchema()
+  const rows = await sql`
+    update quest_recovery set attempts = attempts + 1
+    where email = ${email} and code_expires_at > now() and attempts < ${RECOVERY_MAX_ATTEMPTS}
+    returning code_hash`
+  return rows[0] ? { codeHash: String(rows[0].code_hash) } : null
+}
+
+/** Exchange a live code for a single-use reset token. False when no code is live. */
+export async function issueRecoveryToken(email: string, tokenHash: string, minutes = RECOVERY_TOKEN_TTL_MIN): Promise<boolean> {
+  await ensureSchema()
+  const rows = await sql`
+    update quest_recovery set
+      code_hash = '', code_expires_at = null,
+      token_hash = ${tokenHash}, token_expires_at = now() + make_interval(mins => ${minutes})
+    where email = ${email} and code_hash <> '' and code_expires_at > now()
+    returning email`
+  return rows.length > 0
+}
+
+/**
+ * Consume a recovery token and replace the password in one transaction. `userIds` must
+ * contain both the password identity and the verified-email identity for this address:
+ * a reset revokes password AND Google/emailed-code sessions for the same email.
+ * A missing/expired/used token returns false without changes; any later failure rolls
+ * the transaction back, leaving the token retryable.
+ */
+export async function resetPasswordWithToken(email: string, tokenHash: string, passwordHash: string, userIds: string[]): Promise<boolean> {
+  await ensureSchema()
+  return sql.begin(async (tx) => {
+    const claimed = await tx`
+      delete from quest_recovery
+      where email = ${email} and token_hash = ${tokenHash} and token_expires_at > now()
+      returning email`
+    if (!claimed.length) return false
+    await tx`
+      insert into quest_passwords (email, hash) values (${email}, ${passwordHash})
+      on conflict (email) do update set hash = excluded.hash, updated_at = now()`
+    await tx`delete from quest_otps where email = ${email}`
+    await tx`delete from quest_recovery where email = ${email}`
+    await tx`update quest_users set session_version = nextval('quest_session_seq') where id = any(${userIds})`
+    return true
+  })
 }
 
 /** Total bytes a learner has uploaded (for the per-person storage cap). */

@@ -16,7 +16,6 @@ const state = (pro: QuestState['pro']): QuestState => ({
   checkins: [],
   activity: [],
   days: [],
-  cheers: [],
   coachMessages: 0,
   files: [],
   profile: null,

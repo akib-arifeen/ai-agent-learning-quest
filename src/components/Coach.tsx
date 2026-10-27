@@ -27,8 +27,8 @@ function useWide() {
 
 /**
  * Spark's chat panel. One conversation per quest (plus a general one), saved on the
- * server so it survives reloads and the mentor can see where a learner got stuck. Replies stream
- * in token by token.
+ * server so it survives reloads and the learner can pick up where they left off. Replies
+ * stream in token by token.
  */
 export default function Coach({ open, taskId, draft, onClose }: { open: boolean; taskId: string; draft: string; onClose: () => void }) {
   const { today, state, coachSent, setup } = useQuest()
@@ -237,7 +237,7 @@ export default function Coach({ open, taskId, draft, onClose }: { open: boolean;
                 <ArrowUp size={22} strokeWidth={2.6} />
               </button>
             </form>
-            <div className="coach__note">Spark gives hints, not ready-made prompts. Your mentor can read these chats to help you.</div>
+            <div className="coach__note">Spark gives hints, not ready-made prompts. Your chats are private to your account, and Spark is optional — use it when you want a hand.</div>
           </motion.aside>
         </>
       )}

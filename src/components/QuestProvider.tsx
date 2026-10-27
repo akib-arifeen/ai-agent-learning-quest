@@ -25,7 +25,6 @@ type Ctx = {
   act: (taskId: string, op: string, payload?: Record<string, unknown>) => Promise<ProgressRow | null>
   setBusy: (day: string, on: boolean) => Promise<void>
   checkin: (taskId: string, message: string, image: string | null) => Promise<boolean>
-  dismissCheer: (id: number) => Promise<void>
   openCoach: (taskId?: string, draft?: string) => void
   coachSent: () => void
   error: (text: string) => void
@@ -226,11 +225,6 @@ function SignedInApp({ children, gate }: { children: React.ReactNode; gate: Gate
     [error, send],
   )
 
-  const dismissCheer: Ctx['dismissCheer'] = useCallback(async (id) => {
-    setState((s) => (s ? { ...s, cheers: s.cheers.map((c) => (c.id === id ? { ...c, seen_at: new Date().toISOString() } : c)) } : s))
-    await send('/api/cheer', { id }, 'PATCH')
-  }, [send])
-
   // Sign out on this device (clears the session cookie).
   const signOut = useCallback(async () => {
     if (!window.confirm('Sign out of your quest on this device?')) return
@@ -299,7 +293,7 @@ function SignedInApp({ children, gate }: { children: React.ReactNode; gate: Gate
     )
   if (!state || !sum) return <Loading failed={failed} retry={load} />
 
-  const ctx: Ctx = { state, today, now, sum, act, setBusy, checkin, dismissCheer, openCoach, coachSent, error, signOut, refresh: load, setup, saveProfile }
+  const ctx: Ctx = { state, today, now, sum, act, setBusy, checkin, openCoach, coachSent, error, signOut, refresh: load, setup, saveProfile }
   return (
     <QuestCtx.Provider value={ctx}>
       {/* JS-driven springs follow the OS "reduce motion" setting, like the CSS ones do. */}

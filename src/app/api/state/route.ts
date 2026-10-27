@@ -11,5 +11,6 @@ export async function GET(req: Request) {
   const u = await me(true)
   if (!u) return fail('Sign in first.', 401)
   const learner = await touchUser(u, new URL(req.url).searchParams.get('today') || undefined)
-  return json({ ...(await loadState(learner)), mentor: u.mentor })
+  // `verified` is an auth fact, not stored on the DB learner row; the account UI needs it.
+  return json(await loadState({ ...learner, verified: u.verified }))
 }

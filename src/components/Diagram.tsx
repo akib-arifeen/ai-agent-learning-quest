@@ -197,7 +197,7 @@ function Mcp({ t }: { t: T }) {
       <Arrow t={t} pts={[[190, 148], [260, 186]]} delay={2.3} />
       <Pop t={t} delay={2.6}>
         <Node x={8} y={190} w={96} h={34} a="Checks" />
-        <Node x={112} y={190} w={96} h={34} a="You and your" b="mentor" />
+        <Node x={112} y={190} w={96} h={34} a="You + your" b="own notes" />
         <Node x={216} y={190} w={96} h={34} a="Spark" tone />
       </Pop>
     </>
@@ -279,8 +279,8 @@ const PIECES: Record<DiagramName, { C: (p: { t: T }) => React.JSX.Element; h: nu
     C: Mcp,
     h: 232,
     label:
-      'Your agent calls quest_get_task on the Quest MCP server and sends evidence with quest_submit_evidence, with secrets removed first. The server passes results to checks, you and your mentor, and Spark.',
-    caption: 'Your agent asks for a task and sends evidence. The server checks it and tells you, your mentor and Spark.',
+      'Your agent calls quest_get_task on the Quest MCP server and sends evidence with quest_submit_evidence, with secrets removed first. The server passes results to checks, you and your own notes, and Spark when you ask.',
+    caption: 'Your agent asks for a task and sends evidence. The server checks it and shows the result to you; Spark sees it only when you ask.',
   },
   delegate: {
     C: Delegate,

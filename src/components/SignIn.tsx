@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Camera, Check, Compass, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Gate } from '@/lib/entry'
+import { localDay } from '@/lib/game'
 import { GOOGLE_BUTTON_LABEL, GOOGLE_BUTTON_OPTIONS, GOOGLE_GSI_SRC } from '@/lib/google'
 import { toolOf } from '@/lib/tools'
 import { confetti } from './Celebrate'
@@ -13,7 +14,7 @@ import Spark, { type Mood } from './Spark'
 
 const POINTS = [
   { icon: MapIcon, text: '10 quests, from glowing toys to a real game' },
-  { icon: MessageCircle, text: 'Spark, a coach who helps without doing it for you' },
+  { icon: MessageCircle, text: 'Optional Spark coaching: hints when you ask, never a monitor' },
   { icon: Compass, text: 'Fits your background and the AI tool you use' },
   { icon: Flame, text: 'XP, streaks and a plan that fits your week' },
 ]
@@ -30,7 +31,7 @@ const NODES = [
 const STEPS = [
   { title: 'Tell Spark about you', body: 'Your background, what you want to build and the AI tool you use. About a minute.' },
   { title: 'Set up your agent', body: 'Start free with Kilo Code or OpenCode, or bring the tool you already pay for. Step by step for your computer.' },
-  { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark coaches; you write the prompts.' },
+  { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark can coach when you ask; you write the prompts.' },
 ]
 
 // The real map, level by level. Enough to see the shape of the course without a wall of text.
@@ -164,7 +165,9 @@ export function Landing({ onStart }: { onStart: (e: React.MouseEvent) => void })
           <span className="muted">and more</span>
         </div>
         <p className="signin__fine">The quest is free from Base Camp to the final project — no paid tiers, no locked quests, no ceiling. Bring a free tool (Kilo Code or OpenCode) or one you already pay for. Sign in with Google or email; your progress saves, and you stay signed in.</p>
-        <p className="signin__fine">Forgot your password? Ask your mentor — they can reset it for you. There is no self-serve reset email.</p>
+        <p className="signin__fine">
+          Forgot your password? <Link href="/recover">Reset it with an email code</Link>.
+        </p>
         <p className="signin__fine">
           Connecting your own agent? Read the <Link href="/mcp">public MCP setup guide</Link>.
         </p>
@@ -306,7 +309,11 @@ const loadGoogle = () =>
 
 /** POST to the sign-in endpoint; throws the server's friendly message on failure. */
 async function signIn(body: Record<string, unknown>) {
-  const res = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const res = await fetch('/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, today: localDay() }),
+  })
   const b = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(b.error || 'Sign-in didn’t go through. Please try again.')
   return b as { ok?: boolean; needName?: boolean; isNew?: boolean }
@@ -592,11 +599,15 @@ function Auth({ onDone, onBack, entering, gate }: { onDone: () => void; onBack: 
             <button className="btn btn--lg btn--block" disabled={busy}>
               {mode === 'up' ? 'Create my account' : gate ? gate.nextLabel : 'Sign in'}
             </button>
-            {mode === 'in' && <p className="signin__fine">Forgot your password? Ask your mentor — they can reset it for you. There is no self-serve reset email.</p>}
             {opts?.otp && (
               <button type="button" className="linkbtn" onClick={() => setStep('email')}>
                 Sign in with an email code instead
               </button>
+            )}
+            {mode === 'in' && (
+              <Link href="/recover" className="linkbtn">
+                Forgot password?
+              </Link>
             )}
           </form>
         )}

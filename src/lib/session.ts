@@ -3,8 +3,8 @@
  * optional "Sign in with Google" (we verify Google's ID token ourselves — no Firebase,
  * no third-party auth service, no usage quota). Either way the learner then carries our
  * own signed, httpOnly cookie that lasts a year and rolls forward, so they stay signed
- * in. A person's id comes from their email, so Google and password sign-ins for the
- * same address land in the same account. Server-only.
+ * in. Verified Google and emailed-code identities share a `u_` account for the same
+ * address; unverified password accounts use a separate `p_` id space. Server-only.
  */
 
 import crypto from 'crypto'
@@ -12,7 +12,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
 /** `verified`: they proved they own the email (Google or an emailed code), not just typed it. */
-export type SessionUser = { id: string; email: string; name: string; image: string | null; verified: boolean }
+export type SessionUser = { id: string; email: string; name: string; image: string | null; verified: boolean; sv?: number }
 
 const COOKIE = 'quest_session'
 const YEAR_S = 365 * 24 * 60 * 60
@@ -57,7 +57,14 @@ export async function readSession(roll = false): Promise<SessionUser | null> {
   try {
     const p = JSON.parse(Buffer.from(body, 'base64url').toString())
     if (!p.id || !p.email || Date.now() - Number(p.iat) > YEAR_S * 1000) return null
-    const user: SessionUser = { id: String(p.id), email: String(p.email), name: String(p.name || ''), image: p.image || null, verified: p.verified === true }
+    const user: SessionUser = {
+      id: String(p.id),
+      email: String(p.email),
+      name: String(p.name || ''),
+      image: p.image || null,
+      verified: p.verified === true,
+      ...(Number.isInteger(p.sv) ? { sv: Number(p.sv) } : {}),
+    }
     if (roll && Date.now() - Number(p.iat) > ROLL_AFTER_MS) await startSession(user)
     return user
   } catch {
@@ -114,13 +121,3 @@ export async function verifyGoogleToken(credential: string): Promise<SessionUser
     verified: true,
   }
 }
-
-/** Emails that get the mentor view (comma-separated ADMIN_EMAILS) — only after a verified sign-in. */
-export const isMentor = (email: string | null | undefined, verified: boolean) =>
-  verified &&
-  !!email &&
-  (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.toLowerCase())

@@ -6,18 +6,18 @@ describe('entryFor', () => {
     expect(entryFor('/')).toBe('home')
   })
 
-  it('keeps the policy pages and the public MCP guide public', () => {
-    for (const p of ['/privacy', '/terms', '/mcp']) expect(entryFor(p)).toBe('public')
+  it('keeps the policy pages and the public MCP guide and recovery page public', () => {
+    for (const p of ['/privacy', '/terms', '/mcp', '/recover']) expect(entryFor(p)).toBe('public')
   })
 
   it('gates deep links into the app', () => {
-    for (const p of ['/guide', '/pro', '/pro/connect', '/pro/p1', '/profile', '/schedule', '/trophies', '/mentor', '/quest/t1']) {
+    for (const p of ['/guide', '/pro', '/pro/connect', '/pro/p1', '/profile', '/account', '/schedule', '/trophies', '/quest/t1']) {
       expect(entryFor(p), p).toBe('gate')
     }
   })
 
   it('sends unknown paths to the real not-found page', () => {
-    for (const p of ['/nope', '/unknown/deep', '/pro/nope/extra', '/guide/extra', '/privacyy', '/quest']) {
+    for (const p of ['/nope', '/unknown/deep', '/pro/nope/extra', '/guide/extra', '/privacyy', '/quest', '/mentor']) {
       expect(entryFor(p), p).toBe('notfound')
     }
   })

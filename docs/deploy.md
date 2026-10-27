@@ -29,7 +29,7 @@ create table if not exists quest_recovery (
 );
 ```
 
-The new account deletion path removes user-keyed rows in one transaction and then removes the email-keyed password, OTP and recovery records. Because `session_version` lives on `quest_users`, deleting that row makes every old cookie fail its version lookup.
+The new account deletion path removes user-keyed rows in one transaction. A verified-account deletion also removes all same-email password, OTP and recovery records; a password-only deletion removes that password account’s password and recovery records while preserving the separate verified identity’s pending sign-in OTP. Because `session_version` lives on `quest_users`, deleting that row makes every old cookie fail its version lookup.
 
 ## SMTP and recovery
 

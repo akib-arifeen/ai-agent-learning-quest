@@ -52,7 +52,7 @@ export default function AccountSettings() {
       setTimeout(() => window.location.assign('/'), 350)
     } catch {
       setErr(
-        'We couldn’t confirm whether deletion finished — the connection dropped. Reload the page: if you’re signed out, it completed; if you’re still signed in, nothing was deleted and you can try again.',
+        'We couldn’t confirm whether deletion finished — the connection dropped. Reload the page: if you’re signed out, it completed; if you’re still signed in, the account is still active, but some uploaded files may already have been removed. Reload and try again to reconcile.',
       )
       setBusy(false)
     }

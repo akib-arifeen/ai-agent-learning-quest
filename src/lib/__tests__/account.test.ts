@@ -33,6 +33,7 @@ vi.mock('@vercel/blob', () => blob)
 
 import { DELETE } from '@/app/api/account/route'
 
+const BLOB_UNAVAILABLE = 'File storage cleanup isn’t available right now, so your account wasn’t deleted. Please try again later.'
 const BLOB_ERROR = 'We couldn’t safely finish removing your uploaded files, so your account was not deleted. Some files may already be gone — please try again.'
 const PARTIAL_ERROR = 'Your uploaded files were removed, but the rest of your account couldn’t be deleted. Your account is still active — please try again.'
 
@@ -221,29 +222,19 @@ describe('DELETE /api/account Blob handling', () => {
     expect(auth.endSession).not.toHaveBeenCalled()
   })
 
-  it('skips prefix listing without a token, then fails honestly if DB URLs need deletion', async () => {
+  it('fails closed before any lookup or deletion when the Blob token is missing', async () => {
     vi.stubEnv('BLOB_READ_WRITE_TOKEN', '')
+    // Even a DB-indexed URL must not tempt the route into deleting without Blob cleanup.
     db.listAccountBlobUrls.mockResolvedValue(['https://blob.example/a'])
-    blob.del.mockImplementation(async (_urls, opts) => {
-      if (!opts.token) throw new Error('no token')
-    })
     const res = await request({ confirm: 'DELETE MY ACCOUNT' })
     expect(res.status).toBe(502)
-    expect(await res.json()).toEqual({ error: BLOB_ERROR })
-    expect(blob.list).not.toHaveBeenCalled()
-    expect(db.deleteAccountData).not.toHaveBeenCalled()
-    expect(auth.endSession).not.toHaveBeenCalled()
-  })
-
-  it('does not require a Blob token or call the Blob API when there are no files', async () => {
-    vi.stubEnv('BLOB_READ_WRITE_TOKEN', '')
-    db.listAccountBlobUrls.mockResolvedValue([])
-    const res = await request({ confirm: 'DELETE MY ACCOUNT' })
-    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ error: BLOB_UNAVAILABLE })
+    expect(db.getPasswordHash).not.toHaveBeenCalled()
+    expect(db.listAccountBlobUrls).not.toHaveBeenCalled()
     expect(blob.list).not.toHaveBeenCalled()
     expect(blob.del).not.toHaveBeenCalled()
-    expect(db.deleteAccountData).toHaveBeenCalledTimes(1)
-    expect(auth.endSession).toHaveBeenCalledTimes(1)
+    expect(db.deleteAccountData).not.toHaveBeenCalled()
+    expect(auth.endSession).not.toHaveBeenCalled()
   })
 
   it('reports a Blob failure, deletes nothing, and allows a retry', async () => {

@@ -3,6 +3,7 @@ import { deleteAccountData, getPasswordHash, listAccountBlobUrls } from '@/lib/d
 import { fail, json, me, sameUser, withinLimit } from '@/lib/http'
 import { checkPassword, endSession, idForEmail, idForPasswordEmail } from '@/lib/session'
 
+const BLOB_UNAVAILABLE = 'File storage cleanup isn’t available right now, so your account wasn’t deleted. Please try again later.'
 const BLOB_ERROR = 'We couldn’t safely finish removing your uploaded files, so your account was not deleted. Some files may already be gone — please try again.'
 const PARTIAL_ERROR = 'Your uploaded files were removed, but the rest of your account couldn’t be deleted. Your account is still active — please try again.'
 
@@ -20,6 +21,9 @@ export async function DELETE(req: Request) {
   if (!u) return fail('Sign in first.', 401)
   if (!sameUser(u, req)) return fail('You signed in as someone else in another tab — reloading.', 409)
   if (!withinLimit('account-delete', u.id, 5, 10 * 60_000)) return fail('Too many tries — wait a few minutes.', 429)
+  // Without a token we cannot rule out orphaned Blob objects, so fail closed before any deletion.
+  const token = process.env.BLOB_READ_WRITE_TOKEN
+  if (!token) return fail(BLOB_UNAVAILABLE, 502)
 
   const b = await req.json().catch(() => ({}))
   const verified = u.verified === true
@@ -36,22 +40,18 @@ export async function DELETE(req: Request) {
   // Verified sessions own both identities for this email. Password sessions own only p_.
   const userIds = verified ? [...new Set([u.id, idForEmail(u.email), idForPasswordEmail(u.email)])] : [u.id]
   const emailAuth = verified ? 'all' : 'password'
-  const token = process.env.BLOB_READ_WRITE_TOKEN
 
   let urls: string[]
   try {
     urls = await listAccountBlobUrls(userIds)
     // DB rows are the index, but a failed upload may leave an orphan under the same folder.
-    // Only enumerate Blob storage when we have a token; otherwise del will fail honestly.
-    if (token) {
-      for (const id of userIds) {
-        let cursor: string | undefined
-        do {
-          const page = await list({ prefix: `quests/${id}/`, cursor, token })
-          for (const blob of page.blobs) if (blob.url) urls.push(blob.url)
-          cursor = page.hasMore ? page.cursor : undefined
-        } while (cursor)
-      }
+    for (const id of userIds) {
+      let cursor: string | undefined
+      do {
+        const page = await list({ prefix: `quests/${id}/`, cursor, token })
+        for (const blob of page.blobs) if (blob.url) urls.push(blob.url)
+        cursor = page.hasMore ? page.cursor : undefined
+      } while (cursor)
     }
   } catch (e) {
     console.error('account blob lookup', e)

@@ -21,9 +21,26 @@ Sign-in is all in-house (no auth service, no quota): **Google** (Google’s own 
 | Account & data deletion: Blob files first, then one database transaction, with honest partial-failure messages | `src/app/api/account/route.ts` · `src/components/AccountSettings.tsx` |
 | Spark, the optional AI assistant: system prompt + streaming from Cloudflare Workers AI | `src/lib/coach.ts` |
 | API routes | `src/app/api/*` |
-| Pages: map `/`, quest `/quest/t0…t10`, plan `/schedule`, guide `/guide`, pro `/pro`, recovery `/recover`, account `/account`, profile `/profile` | `src/app/*` |
+| Pages: map `/`, quest `/quest/t0…t10`, plan `/schedule`, guide `/guide`, pro `/pro`, public MCP guide `/mcp`, recovery `/recover`, account `/account`, profile `/profile` | `src/app/*` |
 
 Schedule rule: one sitting per day from the learner's first sign-in. Marking a day busy pushes the plan back a day and protects the streak.
+
+## Connect an agent over MCP
+
+The pro track is driven by the learner's own agent over MCP (streamable HTTP) at
+`https://creative-ai-agent-quest.vercel.app/api/mcp`.
+
+1. Sign in, open `/pro`, and choose **Create my token**.
+2. Put it in the agent's MCP config as `Authorization: Bearer <token>`. The token is shown once
+   and stored hashed; making a new one stops the old one immediately.
+3. Ask the agent to call `quest_whoami` first, then `quest_get_task`.
+
+This is a manual bearer token, not an OAuth grant. The app has no OAuth authorization server: no
+authorization endpoint, OAuth token endpoint, dynamic client registration or scopes. An MCP client
+that only supports OAuth discovery cannot connect on its own. `/.well-known/oauth-protected-resource`
+publishes RFC 9728 metadata for the resource and its setup page, and deliberately omits
+`authorization_servers` and `scopes_supported` because there is nothing to advertise. Never
+commit a token or paste it anywhere public.
 
 ## Run locally
 
@@ -57,7 +74,7 @@ This branch has not been merged or deployed. Production deploy is a separate own
 
 The Vercel project is `creative-ai-agent-quest` (functions pinned to `sin1`, next to the Neon DB in Singapore). It has no Git integration; pushing does not deploy.
 
-Production env names: `DATABASE_URL` (Neon integration), `BLOB_READ_WRITE_TOKEN` (Blob store), the three `OPENAI_*` vars, `AUTH_SECRET`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and optionally `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` to enable email codes and password recovery. The Google client’s Authorized JavaScript origin is `https://creative-ai-agent-quest.vercel.app`, and the app is published (Google Auth Platform → Audience) so anyone can sign in. Public pages: `/privacy`, `/terms`, `/recover`.
+Production env names: `DATABASE_URL` (Neon integration), `BLOB_READ_WRITE_TOKEN` (Blob store), the three `OPENAI_*` vars, `AUTH_SECRET`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and optionally `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` to enable email codes and password recovery. The Google client’s Authorized JavaScript origin is `https://creative-ai-agent-quest.vercel.app`, and the app is published (Google Auth Platform → Audience) so anyone can sign in. Public pages: `/privacy`, `/terms`, `/mcp`, `/recover`.
 
 See `docs/deploy.md` for the pending production gates and the additive schema notes.
 

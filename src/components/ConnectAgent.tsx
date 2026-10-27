@@ -179,7 +179,10 @@ export default function ConnectAgent() {
         <h2 id="connect-h">Connect your agent</h2>
         <span className={`chip ${lastUsed ? 'chip--mint' : hasToken ? 'chip--pear' : 'chip--line'}`}>{status}</span>
       </div>
-      <p className="muted">Your agent talks to this app over MCP. Make a token, add it to your agent’s settings, then ask it to try a level.</p>
+      <p className="muted">
+        Your agent talks to this app over MCP. Make a token, add it to your agent’s settings, then ask it to try a level. New to this? Read the{' '}
+        <Link href="/mcp">public MCP setup guide</Link>.
+      </p>
       <Diagram name="mcp" compact />
 
       <div className="row">

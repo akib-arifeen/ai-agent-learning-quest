@@ -34,6 +34,7 @@ vi.mock('@/lib/db', () => ({
   touchUser: db.touchUser,
 }))
 
+import { GET as protectedResourceMetadata } from '@/app/.well-known/oauth-protected-resource/route'
 import { POST } from '@/app/api/mcp/route'
 import { PRO_TASKS } from '@/lib/pro'
 
@@ -102,11 +103,63 @@ describe('MCP route auth', () => {
     clientInfo: { name: 'test', version: '1.0.0' },
   }
 
-  it('returns 401 with no token', async () => {
-    expect((await rpc('initialize', init, null)).status).toBe(401)
+  /** POST with a literal Authorization line, to probe exactly how the header is parsed. */
+  const withAuth = (authorization: string) =>
+    POST(
+      new Request(URL_, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: authorization },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 900, method: 'initialize', params: init }),
+      }),
+    )
+
+  it('returns 401 with no token, saying one is missing', async () => {
+    const res = await rpc('initialize', init, null)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'No authorization provided' })
+    expect(res.headers.get('www-authenticate')).toContain('resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"')
+    expect(db.getLearner).not.toHaveBeenCalled()
   })
-  it('returns 401 with a bad token', async () => {
-    expect((await rpc('initialize', init, 'qst_not_a_real_token_0000')).status).toBe(401)
+  it('returns 401 with a bad token, saying the token is invalid', async () => {
+    const res = await rpc('initialize', init, 'qst_not_a_real_token_0000')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'Invalid or expired token' })
+    const challenge = res.headers.get('www-authenticate') || ''
+    expect(challenge).toContain('error_description="Invalid or expired token"')
+    expect(challenge).toContain('resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"')
+    expect(db.getLearner).not.toHaveBeenCalled()
+  })
+  it('treats a lower-case bearer scheme as a presented token', async () => {
+    const res = await withAuth('bearer qst_not_a_real_token_0000')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'invalid_token', error_description: 'Invalid or expired token' })
+    expect(db.getLearner).not.toHaveBeenCalled()
+  })
+  it('keeps malformed Authorization lines as "no authorization provided"', async () => {
+    // mcp-handler splits on exactly one space and needs a non-empty token, so none of these
+    // presents a token: they must not be reported as an expired one.
+    for (const header of ['Bearer   qst_not_a_real_token_0000', 'Bearer\tqst_not_a_real_token_0000', 'Basic abc', 'Bearer']) {
+      const res = await withAuth(header)
+      expect(res.status, header).toBe(401)
+      expect(await res.json(), header).toEqual({ error: 'invalid_token', error_description: 'No authorization provided' })
+    }
+    expect(db.getLearner).not.toHaveBeenCalled()
+  })
+  it('challenges with a resource_metadata URL that serves this resource', async () => {
+    const res = await rpc('initialize', init, null)
+    expect(res.status).toBe(401)
+    const challenge = res.headers.get('www-authenticate') || ''
+    expect(challenge).toContain('Bearer')
+    const match = /resource_metadata="([^"]+)"/.exec(challenge)
+    expect(match, challenge).not.toBeNull()
+
+    const metadataUrl = new URL(match![1])
+    expect(metadataUrl.origin).toBe('http://localhost:3000')
+    expect(metadataUrl.pathname).toBe('/.well-known/oauth-protected-resource')
+    const metadata = protectedResourceMetadata(new Request(metadataUrl))
+    expect(metadata.status).toBe(200)
+    expect(metadata.headers.get('content-type')).toContain('application/json')
+    expect((await metadata.json()).resource).toBe('http://localhost:3000/api/mcp')
   })
   it('initializes with a good token', async () => {
     const res = await rpc('initialize', init)

@@ -91,7 +91,7 @@ Uploads are removed from Vercel Blob before the database transaction. The two st
 - POST `/api/mcp` without a token → 401.
 - Kilo Code (free Auto Free model) connected through the card and submitted `p1`: **PASSED**, both required checks passed, **1 secret-looking string removed**, stored content shows `EXAMPLE_API_KEY=[REDACTED]`; the fake key is absent. `quest_whoami` and `quest_get_task` were called over the same token.
 - axe 4.12.1: `/pro` 0 violations (1 incomplete, diagram SVG contrast), `/pro/p2` 0 violations, `/guide` 0 violations, connect card 0 violations (same 1 incomplete). Screenshots and JSON: `HANDOFF/reports/quest-shots/`.
-- Verification created one synthetic test learner (`qa-verify@example.com`) on Production; remove it only via Account & data or the test database, never a real learner.
+- Verification created one synthetic test learner (`qa-verify@example.com`) on Production; remove it only by signing into that synthetic account and using Account & data, or with a separately owner-approved cleanup against the correct (production) environment. Never use the test database to clean a production account; it only holds synthetic test data. This learner was not a real learner.
 
 ## Pending production gates
 

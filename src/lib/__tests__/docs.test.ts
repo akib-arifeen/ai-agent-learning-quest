@@ -54,6 +54,14 @@ describe('README and deploy runbook describe the real operating state', () => {
   }
 })
 
+describe('historical production test-learner cleanup is correct', () => {
+  it('does not offer the test database as cleanup for a production account', () => {
+    expect(DEPLOY).toMatch(/never use the test database to clean a production account/i)
+    expect(DEPLOY).not.toMatch(/Account & data or the test database/i)
+    expect(DEPLOY).toMatch(/synthetic test learner/i)
+  })
+})
+
 describe('terms cover self-service deletion', () => {
   it('points at Account & data and self-service deletion', () => {
     expect(TERMS).toMatch(/self-service deletion/i)

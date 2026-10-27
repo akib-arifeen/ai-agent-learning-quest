@@ -26,19 +26,14 @@ describe.skipIf(!enabled)('recovery storage integration', () => {
   beforeAll(async () => {
     db = await import('../db')
     await db.ensureSchema()
-  })
+  }, 60_000)
 
   afterAll(async () => {
     if (!db) return
-    for (const email of Object.values(emails)) {
-      try {
-        await db.deleteAccountData(ids, email, 'all')
-      } catch {
-        // Best effort: the test body already fails if cleanup is the problem.
-      }
-    }
-    await db.sql.end()
-  })
+    const client = db
+    await Promise.allSettled(Object.values(emails).map((email) => client.deleteAccountData(ids, email, 'all')))
+    await client.sql.end()
+  }, 60_000)
 
   it('expires codes, exhausts attempts, and preserves the attempt budget across replacement codes', async () => {
     if (!db) throw new Error('integration database was not loaded')

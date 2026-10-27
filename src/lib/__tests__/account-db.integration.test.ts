@@ -24,23 +24,18 @@ describe.skipIf(!enabled)('deleteAccountData integration', () => {
   beforeAll(async () => {
     db = await import('../db')
     await db.ensureSchema()
-  })
+  }, 60_000)
 
   afterAll(async () => {
     if (!db) return
-    for (const [userIds, address] of [
-      [ids, email],
-      [resetIds, resetEmail],
-      [sameIds, sameEmail],
-    ] as const) {
-      try {
-        await db.deleteAccountData(userIds, address, 'all')
-      } catch {
-        // Best effort: the test body already fails if cleanup is the problem.
-      }
-    }
-    await db.sql.end()
-  })
+    const client = db
+    await Promise.allSettled([
+      client.deleteAccountData(ids, email, 'all'),
+      client.deleteAccountData(resetIds, resetEmail, 'all'),
+      client.deleteAccountData(sameIds, sameEmail, 'all'),
+    ])
+    await client.sql.end()
+  }, 60_000)
 
   it('removes every user-keyed row and both email identities', async () => {
     if (!db) throw new Error('integration database was not loaded')

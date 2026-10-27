@@ -65,7 +65,9 @@ describe('self-directed learner language', () => {
   })
 
   it('does not imply default sharing of evidence', () => {
-    expect(read('components/ConnectAgent.tsx')).toMatch(/nothing is shared by default/i)
+    const copy = read('components/ConnectAgent.tsx')
+    expect(copy).toMatch(/not shown to another learner or another person/i)
+    expect(copy).toMatch(/nothing is shared with other people by default/i)
   })
 })
 

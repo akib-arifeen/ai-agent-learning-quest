@@ -30,7 +30,7 @@ vi.mock('@vercel/blob', () => blob)
 
 import { DELETE } from '@/app/api/account/route'
 
-const BLOB_ERROR = 'We couldn’t remove your uploaded files, so nothing was deleted. Please try again.'
+const BLOB_ERROR = 'We couldn’t safely finish removing your uploaded files, so your account was not deleted. Some files may already be gone — please try again.'
 const PARTIAL_ERROR = 'Your uploaded files were removed, but the rest of your account couldn’t be deleted. Your account is still active — please try again.'
 
 const VERIFIED = { id: 'u1', email: 'sam@example.com', name: 'Sam Lee', image: null, verified: true }

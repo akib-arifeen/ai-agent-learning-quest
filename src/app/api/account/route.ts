@@ -3,7 +3,7 @@ import { deleteAccountData, getPasswordHash, listAccountBlobUrls } from '@/lib/d
 import { fail, json, me, sameUser, withinLimit } from '@/lib/http'
 import { checkPassword, endSession, idForEmail, idForPasswordEmail } from '@/lib/session'
 
-const BLOB_ERROR = 'We couldn’t remove your uploaded files, so nothing was deleted. Please try again.'
+const BLOB_ERROR = 'We couldn’t safely finish removing your uploaded files, so your account was not deleted. Some files may already be gone — please try again.'
 const PARTIAL_ERROR = 'Your uploaded files were removed, but the rest of your account couldn’t be deleted. Your account is still active — please try again.'
 
 /**

@@ -10,7 +10,6 @@ const SCOPE = [
   'your chats with Spark',
   'your onboarding and profile answers',
   'your MCP token and evidence submissions',
-  'your password, sign-in code and recovery records',
 ]
 
 /**
@@ -65,8 +64,11 @@ export default function AccountSettings() {
         <span className="mono muted">Account &amp; data</span>
         <h1 style={{ fontSize: 'var(--text-3xl)' }}>Delete your account</h1>
         <p className="muted">
-          Signed in as <b style={{ color: 'var(--color-ink)' }}>{state.user.email}</b>. This permanently deletes the account tied to this email and cannot be
-          undone.
+          Signed in as <b style={{ color: 'var(--color-ink)' }}>{state.user.email}</b>.{' '}
+          {verified
+            ? 'This permanently deletes this verified account and any password account for the same email.'
+            : 'This permanently deletes this password account.'}{' '}
+          It cannot be undone.
         </p>
       </div>
 
@@ -76,6 +78,11 @@ export default function AccountSettings() {
           {SCOPE.map((item) => (
             <li key={item}>{item}</li>
           ))}
+          {verified ? (
+            <li>your password, sign-in code and recovery records</li>
+          ) : (
+            <li>your password and recovery records for this password account</li>
+          )}
         </ul>
         <p className="muted">
           Downloaded or shared copies, and copies other people kept, cannot be recalled. Provider backups may age out on their own schedule, so deletion is

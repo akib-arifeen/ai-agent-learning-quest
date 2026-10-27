@@ -73,10 +73,12 @@ export default function PrivacyPage() {
           <a href="/account">
             <b>Account &amp; data</b>
           </a>{' '}
-          page. Password accounts confirm the current password; Google and emailed-code accounts type an explicit confirmation phrase. Deletion removes your
-          profile, progress, notes and private reflections, uploads (Blob objects and their database index), Spark chats, evidence, MCP token, and password, OTP
-          and recovery records. Existing sessions stop working. Copies you downloaded or shared, and copies other people kept, cannot be recalled. Provider
-          backups may age out on the provider’s schedule, so deletion is not instantaneous everywhere.
+          page. Password accounts confirm the current password; Google and emailed-code accounts type an explicit confirmation phrase. A verified-account deletion
+          removes all same-email password, sign-in code and recovery records. A password-account deletion removes only that password account’s password and
+          recovery records, leaving a separate verified identity and its sign-in codes intact. Deletion also removes the affected account data: profile, progress,
+          notes and private reflections, uploads (Blob objects and their database index), Spark chats, evidence and MCP token. Existing sessions for the deleted
+          identity (or identities) stop working. Copies you downloaded or shared, and copies other people kept, cannot be recalled. Provider backups may age out on
+          the provider’s schedule, so deletion is not instantaneous everywhere.
         </p>
 
         <p>

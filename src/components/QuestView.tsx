@@ -444,7 +444,7 @@ function WrapModal({
   )
 }
 
-/** The finish line: upload what you made, a line for your mentor, an optional own twist, then celebration. */
+/** The finish line: upload what you made, a private reflection, an optional own twist, then celebration. */
 function FinishModal({ open, quest: q, v, onClose }: { open: boolean; quest: Quest; v: Variant; onClose: () => void }) {
   const { act, checkin, sum, today } = useQuest()
   const [msg, setMsg] = useState('')
@@ -479,7 +479,8 @@ function FinishModal({ open, quest: q, v, onClose }: { open: boolean; quest: Que
         </div>
         <Creations taskId={q.id} compact />
         <div className="field">
-          <label htmlFor="msg">A line for your mentor: what did you make? What surprised you?</label>
+          <label htmlFor="msg">Your private reflection: what did you make? What surprised you?</label>
+          <small className="muted">Only you can see this reflection.</small>
           <textarea
             id="msg"
             maxLength={2000}

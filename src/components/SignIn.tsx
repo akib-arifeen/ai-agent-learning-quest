@@ -9,7 +9,7 @@ import Spark, { type Mood } from './Spark'
 
 const POINTS = [
   { icon: MapIcon, text: '10 quests, from glowing toys to a real game' },
-  { icon: MessageCircle, text: 'Spark, a coach who helps without doing it for you' },
+  { icon: MessageCircle, text: 'Optional Spark coaching: hints when you ask, never a monitor' },
   { icon: Compass, text: 'Fits your background and the AI tool you use' },
   { icon: Flame, text: 'XP, streaks and a plan that fits your week' },
 ]
@@ -26,7 +26,7 @@ const NODES = [
 const STEPS = [
   { title: 'Tell Spark about you', body: 'Your background, what you want to build and the AI tool you use. About a minute.' },
   { title: 'Set up your agent', body: 'Start free with Kilo Code or OpenCode, or bring the tool you already pay for. Step by step for your computer.' },
-  { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark coaches; you write the prompts.' },
+  { title: 'Build ten real things', body: 'One sitting a day, from glowing toys to a game you publish. Spark can coach when you ask; you write the prompts.' },
 ]
 
 const WORKS_WITH = ['kilo', 'opencode', 'claude-code', 'cursor', 'copilot']
@@ -519,7 +519,7 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
               </button>
             ) : (
               mode === 'in' && (
-                <button type="button" className="linkbtn" onClick={() => setNote('Ask your mentor — they can reset it for you from Mentor HQ.')}>
+                <button type="button" className="linkbtn" onClick={() => setNote('Password reset isn’t available yet.')}>
                   Forgot password?
                 </button>
               )

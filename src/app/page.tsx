@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
-import { Heart, Rocket, X } from 'lucide-react'
+import { Rocket, X } from 'lucide-react'
 import Onboarding from '@/components/Onboarding'
 import QuestMap from '@/components/QuestMap'
 import { useQuest } from '@/components/QuestProvider'
@@ -35,9 +35,8 @@ function sparkLine(sum: ReturnType<typeof useQuest>['sum'], today: string, worke
 
 /** Home: today's mission, stats and badges on the side, the quest map on the right. */
 export default function Home() {
-  const { sum, state, today, now, dismissCheer, saveProfile } = useQuest()
+  const { sum, state, today, now, saveProfile } = useQuest()
   const name = firstName(state.user.name)
-  const cheer = state.cheers.find((c) => !c.seen_at)
   const proPassed = PRO_TASKS.filter((t) => state.pro.tasks[t.id]?.passed).length
   const proFirst = state.profile?.experience === 'comfortable' || state.profile?.role === 'developer'
   const proCard = (
@@ -77,27 +76,6 @@ export default function Home() {
             </motion.p>
           </div>
         </div>
-
-        <AnimatePresence>
-          {cheer && (
-            <motion.div
-              className="cheer"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <Heart size={20} style={{ color: 'var(--color-accent-3)', flex: 'none', marginTop: 2 }} />
-              <div style={{ minWidth: 0 }}>
-                <b>{cheer.from_name || 'Your mentor'} says</b>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{cheer.message}</p>
-              </div>
-              <button className="iconbtn" style={{ marginLeft: 'auto', flex: 'none' }} onClick={() => dismissCheer(cheer.id)} aria-label="Dismiss">
-                <X size={18} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <AnimatePresence>
           {showPersonalisePrompt(state) && (

@@ -7,7 +7,7 @@
  * Checks are declarative data (no code in tasks), run deterministically by `verify` in
  * pro-checks.ts; Spark can then review the same evidence for meaning. Nothing here is a
  * proctoring system: a determined learner could fake evidence, and that's fine. It's a
- * learning loop, and the mentor sees what was sent.
+ * learning loop, and the learner sees what was sent.
  * Shared by the browser and the server.
  */
 
@@ -72,7 +72,7 @@ export type ProTask = {
 export type EvidenceItem = {
   id: string
   kind: EvidenceKind
-  /** Where it came from: a file path, or the command that was run. Shown to mentors. */
+  /** Where it came from: a file path, or the command that was run. Shown to the learner. */
   source?: string
   content: string
 }
@@ -99,7 +99,7 @@ export type ProStatus = {
   lastUsed: string | null
 }
 
-/** One stored submission, as the learner and mentor see it. */
+/** One stored submission, as the learner sees it. */
 export type Submission = { id: number; task_id: string; passed: boolean; redactions: number; items: EvidenceItem[]; results: CheckResult[]; created_at: string }
 
 /** Size caps for one submission, enforced by `verify` and the MCP tool's schema. */

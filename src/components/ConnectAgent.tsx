@@ -222,7 +222,7 @@ export default function ConnectAgent() {
         <ShieldCheck size={18} aria-hidden />
         <span>
           Your agent sends only what a level lists: file contents and command output. Anything that looks like a key or password is removed before saving. Every
-          submission appears on its level’s page, and your mentor can see it. Checks look at the shape of your evidence, and your mentor and Spark can review what you sent. It’s a learning loop, not proctoring. Never paste your token anywhere public.
+          submission appears on its level’s page, and no one else is shown it. Checks look at the shape of your evidence; you, and Spark when you ask, can review what you sent. Nothing is shared by default. It’s a learning loop, not proctoring. Never paste your token anywhere public.
         </span>
       </p>
     </section>

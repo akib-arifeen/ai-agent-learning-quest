@@ -7,7 +7,7 @@ const jakarta = Plus_Jakarta_Sans({ variable: '--font-jakarta', subsets: ['latin
 const jetbrains = JetBrains_Mono({ variable: '--font-jetbrains', subsets: ['latin'], weight: ['400', '500'] })
 
 const title = 'Creative AI Agent Quest'
-const description = 'A gamified, AI-coached course for building real things with AI coding agents. Works with Kilo Code, OpenCode, Claude Code, Cursor and more. Free to start.'
+const description = 'A self-directed, gamified course for building real things with AI coding agents, with optional Spark coaching. Works with Kilo Code, OpenCode, Claude Code, Cursor and more. Free to start.'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://creative-ai-agent-quest.vercel.app'),

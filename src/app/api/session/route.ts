@@ -1,14 +1,23 @@
-import { createPassword, deleteOtp, getLearner, getPasswordHash, saveOtp, takeOtpAttempt, touchUser } from '@/lib/db'
+import { createPassword, deleteOtp, getLearner, getPasswordHash, getSessionVersion, saveOtp, takeOtpAttempt, touchUser } from '@/lib/db'
 import { fail, json, withinLimit } from '@/lib/http'
 import { otpEnabled, sendCode } from '@/lib/mail'
 import crypto from 'crypto'
-import { checkPassword, endSession, googleClientId, hashPassword, hmac, idForEmail, idForPasswordEmail, normEmail, startSession, verifyGoogleToken } from '@/lib/session'
+import { checkPassword, endSession, googleClientId, hashPassword, hmac, idForEmail, idForPasswordEmail, normEmail, startSession, verifyGoogleToken, type SessionUser } from '@/lib/session'
 
 // Plain addresses only — no commas, quotes or brackets that a mailer could read as a list.
 const EMAIL = /^[^\s@,;"'<>()]+@[^\s@,;"'<>()]+\.[^\s@,;"'<>()]{2,}$/
 
 // Codes are stored hashed (keyed with the app secret), never in plain text.
 const hashCode = (email: string, code: string) => hmac(`otp:${email}:${code}`)
+
+/** Ensure the account row exists, then sign the cookie with its current security version. */
+async function beginSession(user: SessionUser) {
+  await touchUser(user)
+  // touchUser has just created the row when needed, so a null here is unexpected; 0 keeps
+  // the legacy cookie rule (existing rows predate versioning).
+  const sv = (await getSessionVersion(user.id)) ?? 0
+  await startSession({ ...user, sv })
+}
 
 /** Which sign-in options are switched on — the sign-in card shows only those. */
 export async function GET() {
@@ -31,7 +40,7 @@ export async function POST(req: Request) {
   if (b.mode === 'google') {
     try {
       const user = await verifyGoogleToken(String(b.credential || ''))
-      await startSession(user)
+      await beginSession(user)
       return json({ ok: true })
     } catch (e) {
       console.error('google sign-in', e)
@@ -74,8 +83,7 @@ export async function POST(req: Request) {
     if (!existing && !name) return json({ needName: true })
     await deleteOtp(email)
     const user = existing ? { id, email, name: existing.name, image: existing.image, verified: true } : { id, email, name, image: null, verified: true }
-    if (!existing) await touchUser(user)
-    await startSession(user)
+    await beginSession(user)
     return json({ ok: true })
   }
 
@@ -89,8 +97,7 @@ export async function POST(req: Request) {
     if (password.length < 6) return fail('Use at least 6 characters for your password.')
     if (!(await createPassword(email, hashPassword(password)))) return fail('There’s already an account with that email — sign in instead.')
     const user = { id: pid, email, name, image: null, verified: false }
-    await touchUser(user)
-    await startSession(user)
+    await beginSession(user)
     return json({ ok: true })
   }
 
@@ -99,7 +106,7 @@ export async function POST(req: Request) {
     if (!hash) return fail(otpEnabled() ? 'No password on that account — use “Email me a code” instead.' : 'No account with that email yet — tap “New here” to create one.', 401)
     if (!checkPassword(password, hash)) return fail('That email and password don’t match.', 401)
     const existing = await getLearner(pid)
-    await startSession({ id: pid, email, name: existing?.name || email.split('@')[0], image: existing?.image || null, verified: false })
+    await beginSession({ id: pid, email, name: existing?.name || email.split('@')[0], image: existing?.image || null, verified: false })
     return json({ ok: true })
   }
 

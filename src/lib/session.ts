@@ -12,7 +12,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
 /** `verified`: they proved they own the email (Google or an emailed code), not just typed it. */
-export type SessionUser = { id: string; email: string; name: string; image: string | null; verified: boolean }
+export type SessionUser = { id: string; email: string; name: string; image: string | null; verified: boolean; sv?: number }
 
 const COOKIE = 'quest_session'
 const YEAR_S = 365 * 24 * 60 * 60
@@ -57,7 +57,14 @@ export async function readSession(roll = false): Promise<SessionUser | null> {
   try {
     const p = JSON.parse(Buffer.from(body, 'base64url').toString())
     if (!p.id || !p.email || Date.now() - Number(p.iat) > YEAR_S * 1000) return null
-    const user: SessionUser = { id: String(p.id), email: String(p.email), name: String(p.name || ''), image: p.image || null, verified: p.verified === true }
+    const user: SessionUser = {
+      id: String(p.id),
+      email: String(p.email),
+      name: String(p.name || ''),
+      image: p.image || null,
+      verified: p.verified === true,
+      ...(Number.isInteger(p.sv) ? { sv: Number(p.sv) } : {}),
+    }
     if (roll && Date.now() - Number(p.iat) > ROLL_AFTER_MS) await startSession(user)
     return user
   } catch {

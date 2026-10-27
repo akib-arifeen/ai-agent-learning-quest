@@ -28,15 +28,18 @@ export const sql =
 // Idempotent schema, applied lazily on first use so a fresh database needs no
 // migration step. Every statement is IF NOT EXISTS — safe to run on every cold start.
 const SCHEMA = `
+create sequence if not exists quest_session_seq;
 create table if not exists quest_users (
   id text primary key,
   email text not null,
   name text not null default '',
   image text,
   start_date date,
+  session_version int not null default 0,
   created_at timestamptz not null default now(),
   last_seen timestamptz not null default now()
 );
+alter table quest_users add column if not exists session_version int not null default 0;
 create table if not exists quest_passwords (
   email text primary key,
   hash text not null,
@@ -47,6 +50,15 @@ create table if not exists quest_otps (
   email text primary key,
   code_hash text not null,
   expires_at timestamptz not null,
+  attempts int not null default 0,
+  created_at timestamptz not null default now()
+);
+create table if not exists quest_recovery (
+  email text primary key,
+  code_hash text not null default '',
+  code_expires_at timestamptz,
+  token_hash text,
+  token_expires_at timestamptz,
   attempts int not null default 0,
   created_at timestamptz not null default now()
 );
@@ -196,14 +208,33 @@ export async function touchUser(u: { id: string; email: string; name: string; im
   await ensureSchema()
   const start = isDay(today) ? today : null
   const rows = await sql`
-    insert into quest_users (id, email, name, image, start_date)
-    values (${u.id}, ${u.email}, ${u.name}, ${u.image || null}, coalesce(${start}::date, current_date))
+    insert into quest_users (id, email, name, image, start_date, session_version)
+    values (${u.id}, ${u.email}, ${u.name}, ${u.image || null}, coalesce(${start}::date, current_date), nextval('quest_session_seq'))
     on conflict (id) do update set
       email = excluded.email, name = excluded.name, image = excluded.image, last_seen = now(),
       start_date = coalesce(quest_users.start_date, excluded.start_date)
     returning id, email, name, image, to_char(start_date, 'YYYY-MM-DD') as start_date, last_seen`
   const r = rows[0]
   return { id: String(r.id), email: String(r.email), name: String(r.name), image: (r.image as string) || null, startDate: (r.start_date as string) || start || '', lastSeen: iso(r.last_seen) || '' }
+}
+
+/**
+ * The security version a signed-in cookie must carry. Null means the account row is
+ * gone (deleted or never created), so no cookie may be accepted.
+ */
+export async function getSessionVersion(userId: string): Promise<number | null> {
+  await ensureSchema()
+  const rows = await sql`select session_version from quest_users where id = ${userId}`
+  return rows[0] ? Number(rows[0].session_version) : null
+}
+
+/** Invalidate every existing cookie for an account by moving it to a fresh version. */
+export async function bumpSessionVersion(userId: string): Promise<number | null> {
+  await ensureSchema()
+  const rows = await sql`
+    update quest_users set session_version = nextval('quest_session_seq')
+    where id = ${userId} returning session_version`
+  return rows[0] ? Number(rows[0].session_version) : null
 }
 
 /** Everything one learner's screens render from. */
@@ -429,6 +460,14 @@ export async function createPassword(email: string, hash: string): Promise<boole
   return rows.length > 0
 }
 
+/** Replace an email account's password after a verified self-service reset. */
+export async function setPassword(email: string, hash: string) {
+  await ensureSchema()
+  await sql`
+    insert into quest_passwords (email, hash) values (${email}, ${hash})
+    on conflict (email) do update set hash = excluded.hash, updated_at = now()`
+}
+
 /** Store (or replace) the pending sign-in code for an email. */
 export async function saveOtp(email: string, codeHash: string, minutes = 10) {
   await ensureSchema()
@@ -456,6 +495,61 @@ export async function takeOtpAttempt(email: string): Promise<{ codeHash: string 
 /** A used code can't be used again. */
 export async function deleteOtp(email: string) {
   await sql`delete from quest_otps where email = ${email}`
+}
+
+// ───────────────────────────── password recovery ─────────────────────────────
+
+/** Store (or replace) a recovery code; old guesses stay counted for 30 minutes. */
+export async function saveRecoveryCode(email: string, codeHash: string) {
+  await ensureSchema()
+  await sql`
+    insert into quest_recovery (email, code_hash, code_expires_at, token_hash, token_expires_at, attempts, created_at)
+    values (${email}, ${codeHash}, now() + interval '10 minutes', null, null, 0, now())
+    on conflict (email) do update set
+      code_hash = excluded.code_hash,
+      code_expires_at = excluded.code_expires_at,
+      token_hash = null,
+      token_expires_at = null,
+      created_at = now(),
+      attempts = case when quest_recovery.created_at > now() - interval '30 minutes' then quest_recovery.attempts else 0 end`
+}
+
+/** Count one recovery-code guess and return the hash only while the code is usable. */
+export async function takeRecoveryAttempt(email: string): Promise<{ codeHash: string } | null> {
+  await ensureSchema()
+  const rows = await sql`
+    update quest_recovery set attempts = attempts + 1
+    where email = ${email} and code_expires_at > now() and attempts < 5
+    returning code_hash`
+  return rows[0] ? { codeHash: String(rows[0].code_hash) } : null
+}
+
+/** Exchange a live code for a single-use reset token. False when no code is live. */
+export async function issueRecoveryToken(email: string, tokenHash: string): Promise<boolean> {
+  await ensureSchema()
+  const rows = await sql`
+    update quest_recovery set
+      code_hash = '', code_expires_at = null,
+      token_hash = ${tokenHash}, token_expires_at = now() + interval '15 minutes'
+    where email = ${email} and code_hash <> '' and code_expires_at > now()
+    returning email`
+  return rows.length > 0
+}
+
+/** Consume a reset token. The delete is the single-use guarantee: only one caller wins. */
+export async function claimRecoveryToken(email: string, tokenHash: string): Promise<boolean> {
+  await ensureSchema()
+  const rows = await sql`
+    delete from quest_recovery
+    where email = ${email} and token_hash = ${tokenHash} and token_expires_at > now()
+    returning email`
+  return rows.length > 0
+}
+
+/** Drop any pending recovery material for an email. */
+export async function deleteRecovery(email: string) {
+  await ensureSchema()
+  await sql`delete from quest_recovery where email = ${email}`
 }
 
 /** Total bytes a learner has uploaded (for the per-person storage cap). */

@@ -52,9 +52,9 @@ export const useQuest = () => {
  * fire the +XP pops, badge unlocks and level-up moments.
  */
 export default function QuestProvider({ children }: { children: React.ReactNode }) {
-  // Public pages (the privacy note and terms Google links to) skip sign-in entirely.
+  // Public pages (privacy, terms and password recovery) skip sign-in entirely.
   const path = usePathname()
-  if (path === '/privacy' || path === '/terms') return <>{children}</>
+  if (path === '/privacy' || path === '/terms' || path === '/recover') return <>{children}</>
   return <SignedInApp>{children}</SignedInApp>
 }
 

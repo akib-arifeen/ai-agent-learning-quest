@@ -1,6 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Camera, Check, Compass, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toolOf } from '@/lib/tools'
@@ -248,7 +249,6 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [note, setNote] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -325,7 +325,6 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
   /** Run one sign-in action with busy/error handling. */
   async function run(fn: () => Promise<void>) {
     setErr('')
-    setNote('')
     setBusy(true)
     try {
       await fn()
@@ -513,16 +512,15 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
             <button className="btn btn--lg btn--block" disabled={busy}>
               {mode === 'up' ? 'Create my account' : 'Sign in'}
             </button>
-            {opts?.otp ? (
+            {opts?.otp && (
               <button type="button" className="linkbtn" onClick={() => setStep('email')}>
                 Forgot it? Get an email code instead
               </button>
-            ) : (
-              mode === 'in' && (
-                <button type="button" className="linkbtn" onClick={() => setNote('Password reset isn’t available yet.')}>
-                  Forgot password?
-                </button>
-              )
+            )}
+            {mode === 'in' && (
+              <Link href="/recover" className="linkbtn">
+                Forgot password?
+              </Link>
             )}
           </form>
         )}
@@ -532,7 +530,6 @@ function Auth({ onDone, onBack, entering }: { onDone: () => void; onBack: () => 
             {err}
           </p>
         )}
-        {note && <p className="signin__note">{note}</p>}
         <p className="signin__fine">You’ll stay signed in on this device.</p>
         <button className="linkbtn auth__back" onClick={onBack}>
           <ArrowLeft size={14} style={{ verticalAlign: '-2px' }} /> Back

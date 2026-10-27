@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { ArrowLeft, ArrowRight, Camera, Check, Compass, Crown, Eye, EyeOff, Flame, Mail, Map as MapIcon, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { localDay } from '@/lib/game'
 import { toolOf } from '@/lib/tools'
 import { confetti } from './Celebrate'
 import Spark, { type Mood } from './Spark'
@@ -229,7 +230,11 @@ const loadGoogle = () =>
 
 /** POST to the sign-in endpoint; throws the server's friendly message on failure. */
 async function signIn(body: Record<string, unknown>) {
-  const res = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const res = await fetch('/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, today: localDay() }),
+  })
   const b = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(b.error || 'Sign-in didn’t go through. Please try again.')
   return b as { ok?: boolean; needName?: boolean; isNew?: boolean }

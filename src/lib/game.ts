@@ -22,7 +22,7 @@ export type ProgressRow = {
 export type Checkin = { id: number; task_id: string; message: string; has_image: boolean; created_at: string }
 export type Activity = { at: string; kind: string; task_id: string | null; detail?: string | null }
 export type QuestFile = { id: number; task_id: string; url: string; name: string; content_type: string; size: number; created_at: string }
-export type Learner = { id: string; email: string; name: string; image: string | null; startDate: string; lastSeen: string }
+export type Learner = { id: string; email: string; name: string; image: string | null; startDate: string; lastSeen: string; verified?: boolean }
 export type QuestState = {
   user: Learner
   startDate: string

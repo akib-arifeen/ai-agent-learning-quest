@@ -9,8 +9,8 @@ const db = vi.hoisted(() => ({
   saveRecoveryCode: vi.fn<(email: string, hash: string) => Promise<void>>(),
   takeRecoveryAttempt: vi.fn<(email: string) => Promise<{ codeHash: string } | null>>(),
   issueRecoveryToken: vi.fn<(email: string, hash: string) => Promise<boolean>>(),
+  resetPasswordWithToken: vi.fn<(email: string, tokenHash: string, passwordHash: string, userIds: string[]) => Promise<boolean>>(),
   claimRecoveryToken: vi.fn<(email: string, hash: string) => Promise<boolean>>(),
-  setPassword: vi.fn<(email: string, hash: string) => Promise<void>>(),
   deleteOtp: vi.fn<(email: string) => Promise<void>>(),
   bumpSessionVersion: vi.fn<(userId: string) => Promise<number | null>>(),
   deleteRecovery: vi.fn<(email: string) => Promise<void>>(),
@@ -36,7 +36,7 @@ vi.mock('@/lib/session', async (importOriginal) => {
 import { POST } from '@/app/api/recovery/route'
 import { otpEnabled } from '@/lib/mail'
 import { hashRecoveryCode, hashRecoveryToken, newRecoveryToken, sameHash, RECOVERY_CODE_TTL_MIN, RECOVERY_TOKEN_TTL_MIN } from '@/lib/recovery'
-import { idForPasswordEmail } from '@/lib/session'
+import { idForEmail, idForPasswordEmail } from '@/lib/session'
 
 const UNAVAILABLE = 'Password recovery by email isn’t available on this site yet. If you signed up with Google, use Google sign-in.'
 const GENERIC = 'That code doesn’t match or has expired.'
@@ -61,8 +61,8 @@ beforeEach(() => {
   db.saveRecoveryCode.mockResolvedValue(undefined)
   db.takeRecoveryAttempt.mockResolvedValue(null)
   db.issueRecoveryToken.mockResolvedValue(false)
+  db.resetPasswordWithToken.mockResolvedValue(false)
   db.claimRecoveryToken.mockResolvedValue(false)
-  db.setPassword.mockResolvedValue(undefined)
   db.deleteOtp.mockResolvedValue(undefined)
   db.bumpSessionVersion.mockResolvedValue(1)
   db.deleteRecovery.mockResolvedValue(undefined)
@@ -177,37 +177,49 @@ describe('POST /api/recovery verify', () => {
 })
 
 describe('POST /api/recovery reset', () => {
-  it('rejects a bad or reused token generically', async () => {
-    db.claimRecoveryToken.mockResolvedValue(false)
-    const res = await post({ action: 'reset', email: emailFor('badtoken'), token: 'raw-token', password: 'new-password' })
+  it('rejects a bad or reused token generically through the atomic function', async () => {
+    const email = emailFor('badtoken')
+    const res = await post({ action: 'reset', email, token: 'raw-token', password: 'new-password' })
     expect(res.status).toBe(401)
     expect(await res.json()).toEqual({ error: GENERIC })
-    expect(db.setPassword).not.toHaveBeenCalled()
+    expect(db.resetPasswordWithToken).toHaveBeenCalledWith(
+      email,
+      hashRecoveryToken('raw-token'),
+      'scrypt$test$hash',
+      [idForPasswordEmail(email), idForEmail(email)],
+    )
+    // The old multi-step sequence must not run outside the transaction.
+    expect(db.claimRecoveryToken).not.toHaveBeenCalled()
     expect(db.deleteOtp).not.toHaveBeenCalled()
     expect(db.bumpSessionVersion).not.toHaveBeenCalled()
     expect(db.deleteRecovery).not.toHaveBeenCalled()
   })
 
-  it('rejects a short password before claiming the token', async () => {
+  it('rejects a short password before calling the atomic reset', async () => {
     const res = await post({ action: 'reset', email: emailFor('short'), token: 'raw-token', password: '12345' })
     expect(res.status).toBe(400)
-    expect(db.claimRecoveryToken).not.toHaveBeenCalled()
-    expect(db.setPassword).not.toHaveBeenCalled()
+    expect(db.resetPasswordWithToken).not.toHaveBeenCalled()
   })
 
-  it('resets the password, clears the OTP and revokes old sessions', async () => {
+  it('resets the password and revokes both identities in one atomic call', async () => {
     const email = emailFor('reset')
-    db.claimRecoveryToken.mockResolvedValue(true)
+    db.resetPasswordWithToken.mockResolvedValue(true)
 
     const res = await post({ action: 'reset', email, token: 'raw-token', password: 'new-password' })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })
 
-    expect(db.claimRecoveryToken).toHaveBeenCalledWith(email, hashRecoveryToken('raw-token'))
-    expect(db.setPassword).toHaveBeenCalledWith(email, 'scrypt$test$hash')
-    expect(db.deleteOtp).toHaveBeenCalledWith(email)
-    expect(db.bumpSessionVersion).toHaveBeenCalledWith(idForPasswordEmail(email))
-    expect(db.deleteRecovery).toHaveBeenCalledWith(email)
+    expect(db.resetPasswordWithToken).toHaveBeenCalledTimes(1)
+    expect(db.resetPasswordWithToken).toHaveBeenCalledWith(
+      email,
+      hashRecoveryToken('raw-token'),
+      'scrypt$test$hash',
+      [idForPasswordEmail(email), idForEmail(email)],
+    )
+    expect(db.claimRecoveryToken).not.toHaveBeenCalled()
+    expect(db.deleteOtp).not.toHaveBeenCalled()
+    expect(db.bumpSessionVersion).not.toHaveBeenCalled()
+    expect(db.deleteRecovery).not.toHaveBeenCalled()
     expect(db.createPassword).not.toHaveBeenCalled()
     expect(db.touchUser).not.toHaveBeenCalled()
   })

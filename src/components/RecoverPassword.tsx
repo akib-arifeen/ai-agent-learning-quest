@@ -18,7 +18,7 @@ async function postRecovery(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   })
   const data = await res.json().catch(() => ({}))
-  return { ok: res.ok, data: data as { error?: string; token?: string } }
+  return { ok: res.ok, status: res.status, data: data as { error?: string; token?: string } }
 }
 
 /**
@@ -31,6 +31,9 @@ export default function RecoverPassword() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
+  // The verified reset token is kept so a network/5xx failure does not re-run verify
+  // against an already-consumed code.
+  const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')
@@ -56,6 +59,9 @@ export default function RecoverPassword() {
     e.preventDefault()
     setErr('')
     setNote('')
+    setToken('')
+    setCode('')
+    setPassword('')
     setBusy(true)
     try {
       const r = await postRecovery({ action: 'request', email: email.trim() })
@@ -77,16 +83,32 @@ export default function RecoverPassword() {
     setErr('')
     setBusy(true)
     try {
-      const verified = await postRecovery({ action: 'verify', email: email.trim(), code })
-      if (!verified.ok || !verified.data.token) {
-        setErr(verified.data.error || GENERIC)
-        return
+      let activeToken = token
+      if (!activeToken) {
+        const verified = await postRecovery({ action: 'verify', email: email.trim(), code })
+        if (!verified.ok || !verified.data.token) {
+          setErr(verified.data.error || GENERIC)
+          return
+        }
+        activeToken = verified.data.token
+        setToken(activeToken)
       }
-      const reset = await postRecovery({ action: 'reset', email: email.trim(), token: verified.data.token, password })
+      // Reuse the stored token: the code was consumed by verify and cannot be verified twice.
+      const reset = await postRecovery({ action: 'reset', email: email.trim(), token: activeToken, password })
       if (!reset.ok) {
+        if (reset.status === 401) {
+          setToken('')
+          setCode('')
+          setPassword('')
+          setNote('')
+          setStep('email')
+          setErr('That reset link has expired. Request a new code.')
+          return
+        }
         setErr(reset.data.error || GENERIC)
         return
       }
+      setToken('')
       setNote('')
       setStep('done')
     } catch {
@@ -196,6 +218,21 @@ export default function RecoverPassword() {
                 {busy ? 'Saving…' : 'Reset password'}
               </button>
             </form>
+            <button
+              type="button"
+              className="linkbtn"
+              style={{ justifySelf: 'center' }}
+              onClick={() => {
+                setStep('email')
+                setErr('')
+                setNote('')
+                setToken('')
+                setCode('')
+                setPassword('')
+              }}
+            >
+              Use a different email or request a new code
+            </button>
           </>
         )}
 

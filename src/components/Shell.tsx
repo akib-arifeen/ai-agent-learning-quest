@@ -3,7 +3,7 @@
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, CalendarDays, Flame, Map as MapIcon, Rocket, Trophy } from 'lucide-react'
+import { BookOpen, CalendarDays, Flame, Map as MapIcon, Rocket, Settings, Trophy } from 'lucide-react'
 import { firstName } from '@/lib/game'
 import { questById } from '@/lib/quest'
 import { toolOf } from '@/lib/tools'
@@ -64,6 +64,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </span>
               </span>
             </span>
+            <Link
+              href="/account"
+              className="iconbtn"
+              title="Account and data"
+              aria-label="Account and data"
+              aria-current={path === '/account' || path.startsWith('/account/') ? 'page' : undefined}
+            >
+              <Settings size={18} />
+            </Link>
             <Link href="/profile" className="avatar" title={`Signed in as ${state.user.email}`} aria-label="Your profile" aria-current={path.startsWith('/profile') ? 'page' : undefined}>
               {state.user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element

@@ -1,4 +1,4 @@
-import { createPassword, deleteOtp, getLearner, getPasswordHash, getSessionVersion, saveOtp, takeOtpAttempt, touchUser } from '@/lib/db'
+import { createPassword, deleteOtp, getLearner, getPasswordHash, getSessionVersion, isDay, saveOtp, takeOtpAttempt, touchUser } from '@/lib/db'
 import { fail, json, withinLimit } from '@/lib/http'
 import { otpEnabled, sendCode } from '@/lib/mail'
 import crypto from 'crypto'
@@ -11,8 +11,8 @@ const EMAIL = /^[^\s@,;"'<>()]+@[^\s@,;"'<>()]+\.[^\s@,;"'<>()]{2,}$/
 const hashCode = (email: string, code: string) => hmac(`otp:${email}:${code}`)
 
 /** Ensure the account row exists, then sign the cookie with its current security version. */
-async function beginSession(user: SessionUser) {
-  await touchUser(user)
+async function beginSession(user: SessionUser, today?: string) {
+  await touchUser(user, today)
   // touchUser has just created the row when needed, so a null here is unexpected; 0 keeps
   // the legacy cookie rule (existing rows predate versioning).
   const sv = (await getSessionVersion(user.id)) ?? 0
@@ -36,11 +36,13 @@ export async function POST(req: Request) {
   const ip = String(req.headers.get('x-forwarded-for') || 'local').split(',')[0].trim()
   if (!withinLimit('session', ip, 30, 10 * 60_000)) return fail('Too many tries — wait a few minutes.', 429)
   const b = await req.json().catch(() => ({}))
+  // The browser's local day, so a first sign-in pins the same date /api/state would.
+  const today = isDay(b.today) ? b.today : undefined
 
   if (b.mode === 'google') {
     try {
       const user = await verifyGoogleToken(String(b.credential || ''))
-      await beginSession(user)
+      await beginSession(user, today)
       return json({ ok: true })
     } catch (e) {
       console.error('google sign-in', e)
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
     if (!existing && !name) return json({ needName: true })
     await deleteOtp(email)
     const user = existing ? { id, email, name: existing.name, image: existing.image, verified: true } : { id, email, name, image: null, verified: true }
-    await beginSession(user)
+    await beginSession(user, today)
     return json({ ok: true })
   }
 
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
     if (password.length < 6) return fail('Use at least 6 characters for your password.')
     if (!(await createPassword(email, hashPassword(password)))) return fail('There’s already an account with that email — sign in instead.')
     const user = { id: pid, email, name, image: null, verified: false }
-    await beginSession(user)
+    await beginSession(user, today)
     return json({ ok: true })
   }
 
@@ -106,7 +108,7 @@ export async function POST(req: Request) {
     if (!hash) return fail(otpEnabled() ? 'No password on that account — use “Email me a code” instead.' : 'No account with that email yet — tap “New here” to create one.', 401)
     if (!checkPassword(password, hash)) return fail('That email and password don’t match.', 401)
     const existing = await getLearner(pid)
-    await beginSession({ id: pid, email, name: existing?.name || email.split('@')[0], image: existing?.image || null, verified: false })
+    await beginSession({ id: pid, email, name: existing?.name || email.split('@')[0], image: existing?.image || null, verified: false }, today)
     return json({ ok: true })
   }
 

@@ -168,6 +168,22 @@ create table if not exists quest_evidence (
 create index if not exists quest_evidence_user on quest_evidence (user_id, task_id, id);
 `
 
+/** Every table deleted with an account. Child tables first; quest_users last. */
+export const ACCOUNT_TABLES = [
+  'quest_progress',
+  'quest_activity',
+  'quest_busy',
+  'quest_checkins',
+  'quest_messages',
+  'quest_files',
+  'quest_cheers',
+  'quest_profiles',
+  'quest_pace',
+  'quest_mcp_tokens',
+  'quest_evidence',
+  'quest_users',
+] as const
+
 let ready: Promise<void> | null = null
 /** Make sure the tables exist (once per instance; retried if it failed). */
 export const ensureSchema = () =>
@@ -182,7 +198,7 @@ export const ensureSchema = () =>
 // Postgres returns Date objects for timestamptz; the client wants ISO strings.
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v) : null)
 // A real calendar day (round-trips through Date, so 2026-02-31 fails) in a sane range.
-const isDay = (s: unknown): s is string => {
+export const isDay = (s: unknown): s is string => {
   if (typeof s !== 'string' || !/^20[2-9]\d-\d{2}-\d{2}$/.test(s)) return false
   const t = new Date(`${s}T00:00:00Z`)
   return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === s
@@ -446,6 +462,35 @@ export async function removeFile(userId: string, id: number): Promise<string | n
   return (rows[0]?.url as string) || null
 }
 
+/** Every Blob URL owned by these account identities (deduped, no live Blob list call). */
+export async function listAccountBlobUrls(userIds: string[]): Promise<string[]> {
+  await ensureSchema()
+  if (!userIds.length) return []
+  const rows = await sql`select url from quest_files where user_id = any(${userIds})`
+  return [...new Set(rows.map((r) => String(r.url || '')).filter(Boolean))]
+}
+
+/**
+ * Delete every database row keyed to these account identities, plus the password/OTP/
+ * recovery records for the email. One transaction: a failure rolls back everything.
+ * Deleting quest_users makes every old cookie fail the session-version lookup.
+ */
+export async function deleteAccountData(userIds: string[], email: string): Promise<void> {
+  await ensureSchema()
+  if (!userIds.length) return
+  await sql.begin(async (tx) => {
+    for (const table of ACCOUNT_TABLES) {
+      if (table === 'quest_users') continue
+      // Table names come from the fixed ACCOUNT_TABLES list, never from a caller.
+      await tx`delete from ${tx(table)} where user_id = any(${userIds})`
+    }
+    await tx`delete from quest_users where id = any(${userIds})`
+    await tx`delete from quest_passwords where email = ${email}`
+    await tx`delete from quest_otps where email = ${email}`
+    await tx`delete from quest_recovery where email = ${email}`
+  })
+}
+
 /** The stored password hash for an email account, or null if it has none. */
 export async function getPasswordHash(email: string): Promise<string | null> {
   await ensureSchema()
@@ -458,14 +503,6 @@ export async function createPassword(email: string, hash: string): Promise<boole
   await ensureSchema()
   const rows = await sql`insert into quest_passwords (email, hash) values (${email}, ${hash}) on conflict do nothing returning email`
   return rows.length > 0
-}
-
-/** Replace an email account's password after a verified self-service reset. */
-export async function setPassword(email: string, hash: string) {
-  await ensureSchema()
-  await sql`
-    insert into quest_passwords (email, hash) values (${email}, ${hash})
-    on conflict (email) do update set hash = excluded.hash, updated_at = now()`
 }
 
 /** Store (or replace) the pending sign-in code for an email. */
@@ -550,6 +587,31 @@ export async function claimRecoveryToken(email: string, tokenHash: string): Prom
 export async function deleteRecovery(email: string) {
   await ensureSchema()
   await sql`delete from quest_recovery where email = ${email}`
+}
+
+/**
+ * Consume a recovery token and replace the password in one transaction. `userIds` must
+ * contain both the password identity and the verified-email identity for this address:
+ * a reset revokes password AND Google/emailed-code sessions for the same email.
+ * A missing/expired/used token returns false without changes; any later failure rolls
+ * the transaction back, leaving the token retryable.
+ */
+export async function resetPasswordWithToken(email: string, tokenHash: string, passwordHash: string, userIds: string[]): Promise<boolean> {
+  await ensureSchema()
+  return sql.begin(async (tx) => {
+    const claimed = await tx`
+      delete from quest_recovery
+      where email = ${email} and token_hash = ${tokenHash} and token_expires_at > now()
+      returning email`
+    if (!claimed.length) return false
+    await tx`
+      insert into quest_passwords (email, hash) values (${email}, ${passwordHash})
+      on conflict (email) do update set hash = excluded.hash, updated_at = now()`
+    await tx`delete from quest_otps where email = ${email}`
+    await tx`delete from quest_recovery where email = ${email}`
+    await tx`update quest_users set session_version = nextval('quest_session_seq') where id = any(${userIds})`
+    return true
+  })
 }
 
 /** Total bytes a learner has uploaded (for the per-person storage cap). */

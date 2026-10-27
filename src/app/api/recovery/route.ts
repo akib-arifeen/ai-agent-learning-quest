@@ -1,19 +1,9 @@
 import crypto from 'crypto'
-import {
-  bumpSessionVersion,
-  claimRecoveryToken,
-  deleteOtp,
-  deleteRecovery,
-  getPasswordHash,
-  issueRecoveryToken,
-  saveRecoveryCode,
-  setPassword,
-  takeRecoveryAttempt,
-} from '@/lib/db'
+import { getPasswordHash, issueRecoveryToken, resetPasswordWithToken, saveRecoveryCode, takeRecoveryAttempt } from '@/lib/db'
 import { fail, json, withinLimit } from '@/lib/http'
 import { otpEnabled, sendRecoveryCode } from '@/lib/mail'
 import { RECOVERY_TOKEN_TTL_MIN, hashRecoveryCode, hashRecoveryToken, newRecoveryToken, sameHash } from '@/lib/recovery'
-import { hashPassword, idForPasswordEmail, normEmail } from '@/lib/session'
+import { hashPassword, idForEmail, idForPasswordEmail, normEmail } from '@/lib/session'
 
 // Same plain addresses only rule as sign-in — no commas, quotes or brackets.
 const EMAIL = /^[^\s@,;"'<>()]+@[^\s@,;"'<>()]+\.[^\s@,;"'<>()]{2,}$/
@@ -70,12 +60,11 @@ export async function POST(req: Request) {
     const password = String(b.password || '')
     if (password.length < 6) return fail('Use at least 6 characters for your password.')
     const token = String(b.token || '')
-    // Claiming deletes the row: a second caller cannot reuse this token.
-    if (!token || !(await claimRecoveryToken(email, hashRecoveryToken(token)))) return fail(GENERIC, 401)
-    await setPassword(email, hashPassword(password))
-    await deleteOtp(email)
-    await bumpSessionVersion(idForPasswordEmail(email))
-    await deleteRecovery(email)
+    const userIds = [...new Set([idForPasswordEmail(email), idForEmail(email)])]
+    // One transaction consumes the token, changes the password and revokes both identities.
+    if (!token || !(await resetPasswordWithToken(email, hashRecoveryToken(token), hashPassword(password), userIds))) {
+      return fail(GENERIC, 401)
+    }
     return json({ ok: true })
   }
 
